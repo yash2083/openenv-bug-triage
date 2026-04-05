@@ -1,0 +1,20 @@
+{
+  "issue_id": "TRIAGE-012",
+  "title": "User profile page shows stale cached data after email update",
+  "description": "After updating my email address in account settings, the profile page continues to display the old email. Refreshing the page does not help. Logging out and back in shows the correct email. Other users in my organization report the same behavior. This seems to have started after the March 30th deployment.",
+  "reporter_type": "customer",
+  "environment": {
+    "os": "macOS 14.3",
+    "browser": "Firefox 125.0",
+    "app_version": "4.7.2",
+    "device": "Desktop"
+  },
+  "logs_excerpt": "WARN 2026-03-31 11:07:44 cache.invalidation - StaleEntryDetected: cache_key=user_profile:8812 ttl_remaining=1740s last_write=2026-03-31T10:45:00Z",
+  "true_type": "bug",
+  "true_component": "backend",
+  "true_severity": "S2_minor",
+  "required_clarifications": [],
+  "gold_next_action": "schedule_next_sprint",
+  "security_flag": false,
+  "difficulty": "easy"
+}
