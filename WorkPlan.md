@@ -50,28 +50,30 @@ A **real-world OpenEnv environment** that simulates **bug/issue triage** so an A
 **Focus:** “Real-world utility + difficulty progression.”
 
 **Responsibilities**
-- Define the bug triage domain rules:
-  - issue types (bug/feature/question)
-  - severity levels (S0–S3 or P0–P3)
-  - component/team list
-  - escalation policy (security/red flags)
-- Create **3 tasks** (minimum):
-  - **Easy:** complete info, obvious mapping
-  - **Medium:** missing one critical field → requires clarification
-  - **Hard:** multi-symptom / misleading hints / security red flag → must escalate correctly
-- Build dataset (recommended **12–20 scenarios** total):
-  - 4–6 per difficulty level
-- For each scenario include deterministic ground truth:
-  - `true_type`, `true_component`, `true_severity`
-  - `required_clarifications`
-  - `gold_next_action`
-  - optional: `security_flag`, `duplicate_of`, etc.
-- Provide short task descriptions for README
+- ✅ Define the bug triage domain rules:
+  - ✅ issue types (bug/feature/question)
+  - ✅ severity levels (S0–S3 or P0–P3)
+  - ✅ component/team list
+  - ✅ escalation policy (security/red flags)
+- ✅ Create **3 tasks** (minimum):
+  - ✅ **Easy:** complete info, obvious mapping
+  - ✅ **Medium:** missing one critical field → requires clarification
+  - ✅ **Hard:** multi-symptom / misleading hints / security red flag → must escalate correctly
+- ✅ Build dataset (recommended **12–20 scenarios** total):
+  - ✅ 15 scenarios total (5 per difficulty level)
+- ✅ For each scenario include deterministic ground truth:
+  - ✅ `true_type`, `true_component`, `true_severity`
+  - ✅ `required_clarifications`
+  - ✅ `gold_next_action`
+  - ✅ optional: `security_flag`, `duplicate_of`, etc.
+- ✅ Provide short task descriptions for README
 
 **Deliverables**
-- `tasks/` dataset file(s) (JSON/YAML)
-- Ground-truth rubric fields (deterministic)
-- README task text snippets
+- ✅ `tasks/` dataset file(s) (JSON/YAML) — `issues_easy.json`, `issues_medium.json`, `issues_hard.json`
+- ✅ Ground-truth rubric fields (deterministic) — All scenarios include complete ground truth
+- ✅ README task text snippets — Detailed difficulty descriptions added
+- ✅ **Bonus:** `scripts/validate_tasks.py` — Schema validator with coverage reporting
+- ✅ **Bonus:** `tests/test_task_scenarios.py` — 21 tests covering schema and grading integration
 
 ---
 
@@ -226,14 +228,14 @@ bugtriage-openenv/
 ---
 
 ### Milestone 2 — Tasks integrated (Day 2)
-**Owner:** Mohit + You  
-- Mohit delivers task dataset files
-- You load tasks into env reset()
-- Basic transitions work
+**Owner:** Mohit + You
+- ✅ Mohit delivers task dataset files
+- ✅ You load tasks into env reset()
+- ✅ Basic transitions work
 
 **Exit criteria**
-- selecting easy/medium/hard scenarios works
-- env state updates correctly after actions
+- ✅ selecting easy/medium/hard scenarios works
+- ✅ env state updates correctly after actions
 
 ---
 
