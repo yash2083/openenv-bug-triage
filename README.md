@@ -57,10 +57,27 @@ Agents receive a rich context including:
 ## 📊 Tasks & Scoring
 
 ### Difficulty Levels
-Scenarios are loaded from curated datasets in `tasks/`:
-- **Easy**: Clear reports needing simple classification and routing.
-- **Medium**: Missing information; requires `AskClarification` before submission.
-- **Hard**: Complex logs and potential security implications requiring `EscalateToHuman`.
+
+#### Easy — Complete Information
+Fully-documented reports with clear repro steps, environment info, and error logs.
+The correct classification, component routing, and severity are unambiguous from context.
+> Example: An international payment processing failure traced via logs to a Stripe gateway
+> configuration error introduced in v3.1.0.
+
+#### Medium — Missing Information
+Reports arrive with one critical piece missing — repro steps, log output, or environment
+details. The agent must identify the gap and ask one targeted clarification question
+before completing triage. Unnecessary questions are penalized.
+> Example: A mobile app crash report with no reproduction steps, where the agent must
+> ask for steps before correctly classifying and routing.
+
+#### Hard — Complex & Security-Critical
+Multi-symptom scenarios with misleading red-herrings, or clear security red-flags
+(unauthorized data access, authentication bypass). The agent must recognize security
+risks and call EscalateToHuman. Treating a security issue as a normal bug caps the
+score at 0.2 regardless of other correct decisions.
+> Example: A user reports seeing another customer's personal data and order history —
+> the agent must escalate immediately, not just classify as a backend bug.
 
 ### Scoring Rubric (Weighted 0..1)
 | Criterion | Weight | Description |
