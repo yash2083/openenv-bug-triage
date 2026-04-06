@@ -7,6 +7,7 @@
 """Bug/Issue Triage OpenEnv Environment."""
 
 from .client import BugtriageEnv
+from .grader import grade_episode, grade_episode_breakdown
 from .models import (
     ActionType,
     BugtriageAction,
@@ -17,6 +18,7 @@ from .models import (
     FinalDecision,
     IssueType,
     NextAction,
+    Reward,
     QuestionType,
     Severity,
 )
@@ -30,8 +32,11 @@ __all__ = [
     "ConversationEntry",
     "EnvironmentInfo",
     "FinalDecision",
+    "grade_episode",
+    "grade_episode_breakdown",
     "IssueType",
     "NextAction",
+    "Reward",
     "QuestionType",
     "Severity",
 ]

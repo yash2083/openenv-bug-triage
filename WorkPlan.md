@@ -8,6 +8,7 @@
 ## 1) Goal (What we’re building)
 
 A **real-world OpenEnv environment** that simulates **bug/issue triage** so an AI agent can:
+
 - `reset()` into a new issue scenario
 - observe structured issue context
 - take structured actions via `step(action)`
@@ -22,9 +23,11 @@ A **real-world OpenEnv environment** that simulates **bug/issue triage** so an A
 ## 2) Team Roles (Owners + Responsibilities)
 
 ### Person 1 — **You** (Platform & Deployment Owner)
+
 **Focus:** “It runs everywhere, passes validation, deploys cleanly.”
 
 **Responsibilities**
+
 - Initialize project using `openenv init`
 - Implement OpenEnv spec:
   - Typed Pydantic models: `Action`, `Observation`, `State`, `Reward`
@@ -39,6 +42,7 @@ A **real-world OpenEnv environment** that simulates **bug/issue triage** so an A
 - Maintain repo structure and baseline “run” instructions in README
 
 **Deliverables**
+
 - Working environment core + API
 - Dockerfile verified
 - HF Space URL
@@ -47,9 +51,11 @@ A **real-world OpenEnv environment** that simulates **bug/issue triage** so an A
 ---
 
 ### Teammate A — **Mohit** (Tasks & Dataset Owner)
+
 **Focus:** “Real-world utility + difficulty progression.”
 
 **Responsibilities**
+
 - ✅ Define the bug triage domain rules:
   - ✅ issue types (bug/feature/question)
   - ✅ severity levels (S0–S3 or P0–P3)
@@ -69,6 +75,7 @@ A **real-world OpenEnv environment** that simulates **bug/issue triage** so an A
 - ✅ Provide short task descriptions for README
 
 **Deliverables**
+
 - ✅ `tasks/` dataset file(s) (JSON/YAML) — `issues_easy.json`, `issues_medium.json`, `issues_hard.json`
 - ✅ Ground-truth rubric fields (deterministic) — All scenarios include complete ground truth
 - ✅ README task text snippets — Detailed difficulty descriptions added
@@ -78,33 +85,38 @@ A **real-world OpenEnv environment** that simulates **bug/issue triage** so an A
 ---
 
 ### Teammate B — **Saksham** (Grader, Rewards & Baseline Owner)
+
 **Focus:** “Deterministic scoring + shaped rewards + reproducible baseline.”
 
 **Responsibilities**
-- Implement deterministic graders (no subjective scoring):
-  - Return score in **[0.0, 1.0]**
-  - Weighted scoring across multiple criteria
-- Implement shaped reward signals across the trajectory:
-  - partial progress rewards
-  - penalties for loops/early submission/unsafe behavior
-- Implement baseline inference script (`inference.py`):
-  - Uses OpenAI-compatible client + HF Router
-  - Reads `HF_TOKEN` from env
-  - Runs all 3 tasks and prints reproducible scores
-  - Low temperature for reproducibility
-- Provide baseline scores for README
+
+- ✅ Implement deterministic graders (no subjective scoring):
+  - ✅ Return score in **[0.0, 1.0]**
+  - ✅ Weighted scoring across multiple criteria
+- ✅ Implement shaped reward signals across the trajectory:
+  - ✅ partial progress rewards
+  - ✅ penalties for loops/early submission/unsafe behavior
+- ✅ Implement baseline inference script (`inference.py`):
+  - ✅ Uses OpenAI-compatible client + HF Router
+  - ✅ Reads `HF_TOKEN` from env
+  - ✅ Runs all 3 tasks and prints reproducible scores
+  - ✅ Low temperature for reproducibility
+- ✅ Provide baseline scores for README
 
 **Deliverables**
-- `grader.py` + reward logic
-- `inference.py` baseline runner
-- baseline scores (per task + overall)
+
+- ✅ `grader.py` + reward logic
+- ✅ `inference.py` baseline runner
+- ✅ baseline scores (per task + overall)
 
 ---
 
 ## 3) Environment Blueprint (High-level design)
 
 ### Observation (what agent sees)
+
 Recommended fields (keep structured and consistent):
+
 - `issue_id`
 - `title`, `description`
 - `reporter_type` (customer/internal/QA)
@@ -116,7 +128,9 @@ Recommended fields (keep structured and consistent):
 - `step_count`, `max_steps`
 
 ### Action space (structured actions)
+
 Actions should be typed and narrow for deterministic grading:
+
 1. `AskClarification(question_type, question_text)`
 2. `SetClassification(issue_type)`
 3. `SetSeverity(severity)`
@@ -126,6 +140,7 @@ Actions should be typed and narrow for deterministic grading:
 7. `EscalateToHuman(reason)` → ends episode
 
 ### State (internal)
+
 - scenario ground truth (hidden)
 - agent decisions so far
 - missing fields checklist
@@ -134,18 +149,22 @@ Actions should be typed and narrow for deterministic grading:
 ---
 
 ## 4) Tasks (Minimum 3)
+
 Mohit will implement these, but this is the shared definition:
 
 ### Task 1 — Easy
+
 - Clear repro + logs + environment info included
 - Obvious component mapping
 - Goal: correct classification + component + severity + next action
 
 ### Task 2 — Medium
+
 - One critical missing field (e.g., missing repro steps or missing logs)
 - Agent must ask a relevant clarification before submitting triage
 
 ### Task 3 — Hard
+
 - Mixed symptoms + misleading hints
 - Security red-flag phrase (e.g., “can see other user’s data”)
 - Agent must escalate; heavy penalty if treated as normal bug
@@ -153,6 +172,7 @@ Mohit will implement these, but this is the shared definition:
 ---
 
 ## 5) Deterministic Grading (0.0–1.0 score)
+
 Saksham will implement, suggested weighted scoring:
 
 - Classification correctness: **0.25**
@@ -162,14 +182,17 @@ Saksham will implement, suggested weighted scoring:
 - Next action correctness: **0.10**
 
 Hard-task override:
+
 - If `security_flag == true` and agent **does not** escalate → score cap at **0.2** (or apply strong penalty)
 
 ---
 
 ## 6) Reward shaping (step-level)
+
 We need rewards throughout the trajectory (not only terminal). Suggested:
 
 **Positive**
+
 - correct classification chosen: `+0.15`
 - correct component assigned: `+0.20`
 - correct severity: `+0.20`
@@ -178,6 +201,7 @@ We need rewards throughout the trajectory (not only terminal). Suggested:
 - high-quality final submission (all required fields satisfied): `+0.15`
 
 **Negative**
+
 - submitting with missing required info: `-0.20`
 - loop penalty after step N (e.g., after 6): `-0.05` per extra step
 - wrong security handling (hard task): `-0.50`
@@ -188,6 +212,7 @@ We need rewards throughout the trajectory (not only terminal). Suggested:
 ---
 
 ## 7) Repo Structure (recommended)
+
 ```text
 bugtriage-openenv/
   README.md
@@ -213,60 +238,73 @@ bugtriage-openenv/
 ## 8) Step-by-step Execution Plan (Parallel-friendly)
 
 ### Milestone 1 — Skeleton runs (Day 1)
-**Owner:** You  
-- `openenv init <env_name>`
-- Implement minimal models + `reset/step/state`
+
+**Owner:** You
+
+- ✅ `openenv init <env_name>`
+- ✅ Implement minimal models + `reset/step/state`
 - Docker builds and runs
 - HF Space initial deployment (even if tasks are dummy)
 
 **Exit criteria**
+
 - `docker build` succeeds
 - `docker run` starts server
-- `/health` works (or equivalent)
-- `reset()` and `step()` respond
+- ✅ `/health` works (or equivalent)
+- ✅ `reset()` and `step()` respond
 
 ---
 
 ### Milestone 2 — Tasks integrated (Day 2)
+
 **Owner:** Mohit + You
+
 - ✅ Mohit delivers task dataset files
 - ✅ You load tasks into env reset()
 - ✅ Basic transitions work
 
 **Exit criteria**
+
 - ✅ selecting easy/medium/hard scenarios works
 - ✅ env state updates correctly after actions
 
 ---
 
 ### Milestone 3 — Graders + rewards + baseline (Day 3)
-**Owner:** Saksham + You  
-- deterministic grader returns [0,1]
-- shaped rewards per step
-- inference.py runs end-to-end
+
+**Owner:** Saksham + You
+
+- ✅ deterministic grader returns [0,1]
+- ✅ shaped rewards per step
+- ✅ inference.py runs end-to-end
 
 **Exit criteria**
-- `python inference.py` prints task scores
-- scores are reproducible across runs
+
+- ✅ `python inference.py` prints task scores
+- ✅ scores are reproducible across runs
 
 ---
 
 ### Milestone 4 — Validate + polish + final deploy (Day 4)
-**Owner:** You  
-- `openenv validate` passes
+
+**Owner:** You
+
+- ✅ `openenv validate` passes
 - HF Space stable
 - README finalized (tasks, action/obs spaces, setup, baseline scores)
 
 **Exit criteria**
+
 - `openenv validate` ✅
 - HF Space URL works
-- README complete
+- ✅ README complete
 
 ---
 
 ## 9) Commands (Quick Reference)
 
 ### Local
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate
@@ -279,18 +317,21 @@ pip install -r requirements.txt
 ```
 
 ### Docker
+
 ```bash
 docker build -t bugtriage-openenv .
 docker run -p 8000:8000 bugtriage-openenv
 ```
 
 ### Validate + Push
+
 ```bash
 openenv validate
 openenv push
 ```
 
 ### Baseline
+
 ```bash
 export HF_TOKEN="..."
 python inference.py
@@ -299,20 +340,22 @@ python inference.py
 ---
 
 ## 10) Definition of Done (Round 1 Checklist)
-- [ ] Real-world bug/issue triage (not toy/game)
-- [ ] OpenEnv-spec: typed models + `reset/step/state` + `openenv.yaml`
-- [ ] 3 tasks: easy/medium/hard
-- [ ] Deterministic grader returns 0.0–1.0
-- [ ] Reward shaping provides partial progress signals + penalties
-- [ ] Baseline inference script runs & reproduces scores
+
+- [x] Real-world bug/issue triage (not toy/game)
+- [x] OpenEnv-spec: typed models + `reset/step/state` + `openenv.yaml`
+- [x] 3 tasks: easy/medium/hard
+- [x] Deterministic grader returns 0.0–1.0
+- [x] Reward shaping provides partial progress signals + penalties
+- [x] Baseline inference script runs & reproduces scores
 - [ ] `docker build && docker run` works
-- [ ] `openenv validate` passes
+- [x] `openenv validate` passes
 - [ ] Hugging Face Space deployed and stable
-- [ ] README includes: environment description, action/observation spaces, tasks, rewards, setup, baseline scores
+- [x] README includes: environment description, action/observation spaces, tasks, rewards, setup, baseline scores
 
 ---
 
 ## 11) Notes
+
 - Keep environment deterministic (no external LLM calls inside env).
 - Baseline script can use HF Router (free) via OpenAI-compatible client.
 - Prefer structured actions (enums + fields) to make grading reliable and simple.

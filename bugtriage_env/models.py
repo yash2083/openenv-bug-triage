@@ -97,6 +97,14 @@ class FinalDecision(Action):
     next_action: NextAction = Field(..., description="Recommended next action")
 
 
+class Reward(Action):
+    """Typed reward payload returned by the environment."""
+    value: float = Field(..., description="Scalar reward value")
+    done: bool = Field(default=False, description="Whether the episode ended")
+    success: bool = Field(default=False, description="Whether the action was successful")
+    reason: Optional[str] = Field(default=None, description="Optional reward explanation")
+
+
 # ============================================================
 # Top-level Action model
 # ============================================================
@@ -150,6 +158,17 @@ class BugtriageAction(Action):
     # --- EscalateToHuman fields ---
     reason: Optional[str] = Field(
         default=None, description="Reason for escalation"
+    )
+
+    # --- Optional reasoning fields (used by baseline policy, ignored by env scoring) ---
+    analysis_summary: Optional[str] = Field(
+        default=None, description="Short evidence-based analysis summary"
+    )
+    evidence_keys: Optional[List[str]] = Field(
+        default=None, description="Compact evidence tags used for decision"
+    )
+    confidence: Optional[float] = Field(
+        default=None, description="Agent confidence for the chosen action in [0, 1]"
     )
 
 
@@ -218,4 +237,22 @@ class BugtriageObservation(Observation):
     available_actions: List[str] = Field(
         default_factory=lambda: list(AVAILABLE_ACTIONS),
         description="List of valid action types at this step",
+    )
+
+    # --- Deterministic helper signals and terminal scoring outputs ---
+    extracted_signals: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Deterministic extracted hints from issue text and logs",
+    )
+    final_score: Optional[float] = Field(
+        default=None,
+        description="Final deterministic episode score in [0,1] when done",
+    )
+    score_breakdown: Dict[str, float] = Field(
+        default_factory=dict,
+        description="Per-criterion final score breakdown when done",
+    )
+    termination_reason: Optional[str] = Field(
+        default=None,
+        description="Reason for episode termination, if available",
     )

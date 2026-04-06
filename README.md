@@ -3,7 +3,7 @@
 [![OpenEnv Compatible](https://img.shields.io/badge/OpenEnv-Compatible-green.svg)](https://github.com/meta-pytorch/openenv)
 [![License](https://img.shields.io/badge/License-BSD--3--Clause-blue.svg)](CONTRIBUTING.md)
 
-**Bug/Issue Triage OpenEnv** is a high-fidelity [OpenEnv](https://github.com/meta-pytorch/openenv) compatible environment designed to evaluate AI agents on the real-world task of **Bug and Issue Triage**. 
+**Bug/Issue Triage OpenEnv** is a high-fidelity [OpenEnv](https://github.com/meta-pytorch/openenv) compatible environment designed to evaluate AI agents on the real-world task of **Bug and Issue Triage**.
 
 In modern software engineering, triaging incoming reports is a critical but time-consuming process. This system provides a deterministic, structured environment where agents must analyze issue reports (like Jira/GitHub issues), ask for clarifications, classify problems, and assign them to the correct teams with appropriate severity.
 
@@ -34,6 +34,7 @@ In modern software engineering, triaging incoming reports is a critical but time
 The environment uses a structured JSON-based communication protocol.
 
 ### Action Space (7 Types)
+
 1. **`AskClarification`**: Request missing info (repro steps, logs, etc.) from the reporter.
 2. **`SetClassification`**: Categorize as `bug`, `feature_request`, or `question`.
 3. **`SetSeverity`**: Assign priority from `S0_critical` to `S3_cosmetic`.
@@ -43,7 +44,9 @@ The environment uses a structured JSON-based communication protocol.
 7. **`EscalateToHuman`**: Terminal action for security issues or extreme ambiguity.
 
 ### Observation Space
+
 Agents receive a rich context including:
+
 - **`issue_id` / `title` / `description`**: Core issue data.
 - **`environment`**: OS, Browser, App Version, and Device details.
 - **`logs_excerpt`**: Raw system logs if available.
@@ -59,34 +62,41 @@ Agents receive a rich context including:
 ### Difficulty Levels
 
 #### Easy — Complete Information
+
 Fully-documented reports with clear repro steps, environment info, and error logs.
 The correct classification, component routing, and severity are unambiguous from context.
+
 > Example: An international payment processing failure traced via logs to a Stripe gateway
 > configuration error introduced in v3.1.0.
 
 #### Medium — Missing Information
+
 Reports arrive with one critical piece missing — repro steps, log output, or environment
 details. The agent must identify the gap and ask one targeted clarification question
 before completing triage. Unnecessary questions are penalized.
+
 > Example: A mobile app crash report with no reproduction steps, where the agent must
 > ask for steps before correctly classifying and routing.
 
 #### Hard — Complex & Security-Critical
+
 Multi-symptom scenarios with misleading red-herrings, or clear security red-flags
 (unauthorized data access, authentication bypass). The agent must recognize security
 risks and call EscalateToHuman. Treating a security issue as a normal bug caps the
 score at 0.2 regardless of other correct decisions.
+
 > Example: A user reports seeing another customer's personal data and order history —
 > the agent must escalate immediately, not just classify as a backend bug.
 
 ### Scoring Rubric (Weighted 0..1)
-| Criterion | Weight | Description |
-| :--- | :--- | :--- |
-| **Classification** | 0.25 | Correct issue type identification. |
-| **Component** | 0.30 | Correct team assignment. |
-| **Severity** | 0.20 | Proper priority leveling (partial credit for ±1). |
-| **Clarification** | 0.15 | Asking for *required* info vs. unnecessary spam. |
-| **Next Action** | 0.10 | Correct workflow recommendation. |
+
+| Criterion          | Weight | Description                                       |
+| :----------------- | :----- | :------------------------------------------------ |
+| **Classification** | 0.25   | Correct issue type identification.                |
+| **Component**      | 0.30   | Correct team assignment.                          |
+| **Severity**       | 0.20   | Proper priority leveling (partial credit for ±1). |
+| **Clarification**  | 0.15   | Asking for _required_ info vs. unnecessary spam.  |
+| **Next Action**    | 0.10   | Correct workflow recommendation.                  |
 
 **Shaped Rewards**: The agent receives incremental rewards/penalties during the episode to guide behavior (e.g., bonus for required questions, penalty for excessive steps).
 
@@ -95,6 +105,7 @@ score at 0.2 regardless of other correct decisions.
 ## 💻 Installation & Usage
 
 ### Local Setup (No Docker)
+
 Requires `uv` or `pip`.
 
 ```bash
@@ -110,6 +121,7 @@ uvicorn server.app:app --host 0.0.0.0 --port 8000
 ```
 
 ### Golden Commands (curl)
+
 ```bash
 # Health check
 curl http://localhost:8000/health
@@ -129,11 +141,13 @@ curl -X POST http://localhost:8000/step -H "Content-Type: application/json" \
 The environment is designed to run in a container.
 
 **Build:**
+
 ```bash
 docker build -f bugtriage_env/server/Dockerfile -t bugtriage-openenv bugtriage_env/
 ```
 
 **Run:**
+
 ```bash
 docker run -p 8000:8000 -e TASK_SET=medium bugtriage-openenv
 ```
@@ -152,30 +166,51 @@ We ensure the environment adheres to the OpenEnv specification using the officia
 cd bugtriage_env
 openenv validate
 ```
+
 **Status: PASSING** — Checks for endpoint compliance, model schema, and state consistency.
 
 ---
 
 ## 🤖 Baseline Runner
 
-The baseline uses the **Hugging Face Router** to call a language model and perform triage.
+The baseline uses the **OpenAI client** against the Hugging Face Router OpenAI-compatible endpoint to call a language model and perform triage.
 
 **Environment Variables:**
-- `HF_TOKEN`: Your Hugging Face API token.
-- `TASK_SET`: `easy`, `medium`, or `hard`.
-- `MODEL_NAME`: (Optional) Defaults to `meta-llama/Llama-3-70b-instruct`.
+
+- `HF_TOKEN`: Your Hugging Face token for Router access.
+- `ENV_BASE_URL`: (Optional) Defaults to `http://localhost:8000`.
+- `API_BASE_URL`: (Optional) Defaults to `https://router.huggingface.co/v1`.
+- `MODEL_NAME`: (Optional) Model identifier for Router inference.
+- `BASELINE_EPISODES_PER_SET`: (Optional) Defaults to `5`.
 
 **Run Baseline:**
+
 ```bash
 make baseline
 ```
-*Note: If `inference.py` is still in development, this command will run the baseline mock.*
+
+The runner executes `easy`, `medium`, and `hard` sets in one run and prints:
+
+- strict `[START]`, `[STEP]`, and `[END]` logs per episode
+- per-episode score and reward breakdown in the terminal output
+
+### Baseline Score Report
+
+Latest validated baseline run with `Qwen/Qwen2.5-7B-Instruct` and 5 episodes per set:
+
+| Task Set | Episodes | Avg Score |
+| :------- | :------: | :-------: |
+| easy     |    5     |  1.0000   |
+| medium   |    5     |  0.6500   |
+| hard     |    5     |  0.1420   |
+| overall  |    15    |  0.5973   |
 
 ---
 
 ## 📁 Repository Map
 
 - `bugtriage_env/`: Core implementation package.
+- `openenv.yaml`: Root OpenEnv submission manifest.
 - `docs/`: In-depth documentation (Architecture, Rubric, Task Specs).
 - `scripts/`: Verification and utility scripts.
 - `tasks/`: Dataset files for evaluation.
@@ -186,7 +221,7 @@ make baseline
 ## 🚀 Deployment (HF Spaces)
 
 Final submission deployment:
-**HF Space URL**: [https://huggingface.co/spaces/openenv/bugtriage-openenv](https://huggingface.co/spaces/openenv/bugtriage-openenv) *(Placeholder)*
+**HF Space URL**: [https://huggingface.co/spaces/openenv/bugtriage-openenv](https://huggingface.co/spaces/openenv/bugtriage-openenv) _(Placeholder)_
 
 ---
 

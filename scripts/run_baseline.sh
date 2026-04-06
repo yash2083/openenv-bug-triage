@@ -6,9 +6,9 @@ set -euo pipefail
 
 VENV_DIR=".venv"
 
-if [ -z "${HF_TOKEN:-}" ]; then
-    echo "ERROR: HF_TOKEN environment variable is not set."
-    echo "  Export it:  export HF_TOKEN='your-token-here'"
+if [ -z "${OPENAI_API_KEY:-}" ] && [ -z "${HF_TOKEN:-}" ]; then
+    echo "ERROR: OPENAI_API_KEY (or HF_TOKEN fallback) environment variable is not set."
+    echo "  Export it:  export OPENAI_API_KEY='your-token-here'"
     echo "  Or create a .env file and source it:  source .env"
     exit 1
 fi
