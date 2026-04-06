@@ -26,6 +26,11 @@ from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import State
 
 try:
+    from ..grader import (
+        grade_episode,
+        grade_episode_breakdown,
+        submit_has_all_required_fields,
+    )
     from ..models import (
         AVAILABLE_ACTIONS,
         ActionType,
@@ -40,6 +45,11 @@ try:
         Severity,
     )
 except ImportError:
+    from grader import (
+        grade_episode,
+        grade_episode_breakdown,
+        submit_has_all_required_fields,
+    )
     from models import (
         AVAILABLE_ACTIONS,
         ActionType,
@@ -84,6 +94,72 @@ CLARIFICATION_RESPONSES: Dict[str, str] = {
         "I've provided additional details as requested."
     ),
 }
+
+
+def _contains_any(text: str, terms: List[str]) -> bool:
+    lower = text.lower()
+    return any(t in lower for t in terms)
+
+
+def _extract_signals(scenario: Dict[str, Any]) -> Dict[str, Any]:
+    """Build deterministic helper signals from issue text/logs and explicit hints."""
+    description = (scenario.get("description") or "")
+    logs = (scenario.get("logs_excerpt") or "")
+    text = f"{description}\n{logs}".lower()
+
+    security_terms = [
+        "password",
+        "credential",
+        "token",
+        "secret",
+        "email address",
+        "personal data",
+        "privacy",
+        "unauthorized",
+        "admin",
+        "access denied",
+    ]
+    duplicate_terms = ["duplicate", "same issue", "matches the exact error pattern"]
+
+    component_markers: Dict[str, List[str]] = {
+        "auth": ["login", "session", "auth", "password", "token"],
+        "payments": ["payment", "checkout", "stripe", "charge", "card"],
+        "database": ["database", "query", "sql", "connection pool"],
+        "frontend": ["ui", "frontend", "safari", "javascript", "charts"],
+        "mobile": ["mobile", "ios", "android", "app crashes"],
+        "infrastructure": ["deployment", "env", ".env", "configuration", "smtp"],
+        "backend": ["api", "middleware", "service", "controller"],
+        "api": ["endpoint", "429", "rate limiter", "request"],
+        "notifications": ["notification", "email", "smtp"],
+    }
+
+    affected_component = "unknown"
+    for component, markers in component_markers.items():
+        if _contains_any(text, markers):
+            affected_component = component
+            break
+
+    if _contains_any(text, ["all users", "completely down", "service outage", "widespread"]):
+        outage_scope = "widespread"
+    elif _contains_any(text, ["30%", "15%", "multiple users", "segment"]):
+        outage_scope = "segment"
+    else:
+        outage_scope = "single_user"
+
+    signals: Dict[str, Any] = {
+        "likely_security": bool(scenario.get("security_flag", False) or _contains_any(text, security_terms)),
+        "likely_duplicate": _contains_any(text, duplicate_terms),
+        "outage_scope": outage_scope,
+        "affected_surface": affected_component,
+        "has_stacktrace": _contains_any(text, ["stack trace", "exception", "line "]),
+        "has_sensitive_terms": _contains_any(text, security_terms),
+        "explicit_feature_request": _contains_any(text, ["would like", "feature", "quality-of-life", "add "]),
+    }
+
+    explicit_hints = scenario.get("explicit_hints")
+    if isinstance(explicit_hints, dict):
+        signals["explicit_hints"] = explicit_hints
+    return signals
 
 
 # ---------------------------------------------------------------------------
@@ -174,13 +250,13 @@ def _pick_scenario(scenarios: List[Dict[str, Any]], difficulty: str) -> Dict[str
     return scenarios[idx]
 
 
-def _load_sample_scenario() -> Dict[str, Any]:
+def _load_sample_scenario(task_set_override: Optional[str] = None) -> Dict[str, Any]:
     """Load a deterministic scenario respecting the TASK_SET env variable.
 
     TASK_SET=easy|medium|hard  (default: easy)
     Selection is round-robin within the chosen difficulty pool.
     """
-    difficulty = os.environ.get("TASK_SET", "easy").strip().lower()
+    difficulty = (task_set_override or os.environ.get("TASK_SET", "easy")).strip().lower()
     if difficulty not in ("easy", "medium", "hard"):
         difficulty = "easy"
     scenarios = _load_scenarios(difficulty)
@@ -220,6 +296,7 @@ class BugtriageEnvironment(Environment):
 
         # Track what required clarifications the agent has asked
         self._asked_clarifications: List[str] = []
+        self._all_clarification_questions: List[str] = []
 
     # ------------------------------------------------------------------
     # reset()
@@ -253,9 +330,11 @@ class BugtriageEnvironment(Environment):
         self._cumulative_reward = 0.0
         self._agent_decisions = {}
         self._asked_clarifications = []
+        self._all_clarification_questions = []
 
         # Load scenario
-        self._scenario = _load_sample_scenario()
+        task_set = kwargs.get("task_set")
+        self._scenario = _load_sample_scenario(task_set_override=task_set)
 
         # Determine max_steps based on difficulty
         difficulty = self._scenario.get("difficulty", "easy")
@@ -269,7 +348,7 @@ class BugtriageEnvironment(Environment):
             )
         ]
 
-        return self._build_observation()
+        return self._build_observation(extracted_signals=_extract_signals(self._scenario))
 
     # ------------------------------------------------------------------
     # step()
@@ -358,10 +437,39 @@ class BugtriageEnvironment(Environment):
 
         # Add final score to info on episode end
         if done:
-            info["final_score"] = self._compute_final_score()
+            required = set(self._scenario.get("required_clarifications", []))
+            unnecessary_count = sum(
+                1 for q in self._all_clarification_questions if q not in required
+            )
+            breakdown = grade_episode_breakdown(
+                agent_type=self._agent_decisions.get("issue_type", ""),
+                agent_component=self._agent_decisions.get("component", ""),
+                agent_severity=self._agent_decisions.get("severity", ""),
+                agent_next_action=self._agent_decisions.get("next_action", ""),
+                true_type=self._scenario.get("true_type", ""),
+                true_component=self._scenario.get("true_component", ""),
+                true_severity=self._scenario.get("true_severity", ""),
+                gold_next_action=self._scenario.get("gold_next_action", ""),
+                asked_clarifications=self._asked_clarifications,
+                required_clarifications=self._scenario.get("required_clarifications", []),
+                unnecessary_clarifications=unnecessary_count,
+                security_flag=self._scenario.get("security_flag", False),
+                agent_escalated=self._agent_decisions.get("escalated", False),
+                step_count=self._state.step_count,
+            )
+            info["final_score"] = breakdown.final_score
+            info["score_breakdown"] = breakdown.as_dict()
             info["cumulative_reward"] = self._cumulative_reward
 
-        return self._build_observation(reward=reward, done=done, extra_metadata=info)
+        return self._build_observation(
+            reward=reward,
+            done=done,
+            extra_metadata=info,
+            extracted_signals=_extract_signals(self._scenario),
+            final_score=info.get("final_score"),
+            score_breakdown=info.get("score_breakdown", {}),
+            termination_reason=info.get("termination_reason"),
+        )
 
     # ------------------------------------------------------------------
     # state property
@@ -404,6 +512,7 @@ class BugtriageEnvironment(Environment):
             return -0.05
 
         q_type_str = q_type.value if isinstance(q_type, QuestionType) else str(q_type)
+        self._all_clarification_questions.append(q_type_str)
 
         # Add agent question to conversation
         self._conversation_history.append(
@@ -550,7 +659,9 @@ class BugtriageEnvironment(Environment):
         if security_flag:
             return -0.50  # should have escalated, not submitted
 
-        return 0.15  # normal submit
+        if submit_has_all_required_fields(self._agent_decisions):
+            return 0.15
+        return 0.0
 
     def _handle_escalate_to_human(self, action: BugtriageAction) -> float:
         """Handle EscalateToHuman (terminal action)."""
@@ -572,91 +683,31 @@ class BugtriageEnvironment(Environment):
             return -0.10  # unnecessary escalation
 
     # ------------------------------------------------------------------
-    # Score computation (Phase 0 placeholder — Saksham will finalize)
+    # Score computation
     # ------------------------------------------------------------------
 
     def _compute_final_score(self) -> float:
-        """
-        Compute the deterministic final score (0.0–1.0).
-
-        Uses the weighted formula from docs/SCORING_RUBRIC.md.
-        This is a Phase 0 implementation; Saksham will refine in Phase 2.
-        """
-        # Per-criterion scores
-        true_type = self._scenario.get("true_type", "")
-        true_comp = self._scenario.get("true_component", "")
-        true_sev = self._scenario.get("true_severity", "")
-        gold_na = self._scenario.get("gold_next_action", "")
-        required_clar = self._scenario.get("required_clarifications", [])
-        security_flag = self._scenario.get("security_flag", False)
-
-        # Classification
-        classification_score = 1.0 if self._agent_decisions.get("issue_type") == true_type else 0.0
-
-        # Component
-        component_score = 1.0 if self._agent_decisions.get("component") == true_comp else 0.0
-
-        # Severity (with partial credit)
-        agent_sev = self._agent_decisions.get("severity", "")
-        severity_order = ["S0_critical", "S1_major", "S2_minor", "S3_cosmetic"]
-        if agent_sev == true_sev:
-            severity_score = 1.0
-        else:
-            try:
-                diff = abs(severity_order.index(agent_sev) - severity_order.index(true_sev))
-                severity_score = 0.5 if diff == 1 else 0.0
-            except ValueError:
-                severity_score = 0.0
-
-        # Clarification
-        if len(required_clar) == 0:
-            clarification_score = 1.0 if len(self._asked_clarifications) == 0 else 0.8
-        else:
-            asked_required = len(set(self._asked_clarifications) & set(required_clar))
-            unnecessary = len(self._asked_clarifications) - asked_required
-            clarification_score = max(
-                0.0,
-                asked_required / len(required_clar) - 0.1 * unnecessary,
-            )
-
-        # Next action
-        agent_escalated = self._agent_decisions.get("escalated", False)
-        if security_flag and agent_escalated:
-            next_action_score = 1.0
-        elif not security_flag:
-            next_action_score = 1.0 if self._agent_decisions.get("next_action") == gold_na else 0.0
-        else:
-            next_action_score = 0.0
-
-        # Weighted sum
-        raw_score = (
-            0.25 * classification_score
-            + 0.30 * component_score
-            + 0.20 * severity_score
-            + 0.15 * clarification_score
-            + 0.10 * next_action_score
+        required = set(self._scenario.get("required_clarifications", []))
+        unnecessary_count = sum(
+            1 for q in self._all_clarification_questions if q not in required
         )
 
-        # Penalty multiplier
-        penalty_multiplier = 1.0
-        step_count = self._state.step_count
-
-        # Loop penalty
-        if step_count > 6:
-            loop_penalty = 0.05 * (step_count - 6)
-            penalty_multiplier = max(0.0, 1.0 - loop_penalty)
-
-        # Submit-too-early penalty
-        if step_count < 2:
-            penalty_multiplier *= 0.7
-
-        final_score = raw_score * penalty_multiplier
-
-        # Security flag override
-        if security_flag and not agent_escalated:
-            final_score = min(final_score, 0.2)
-
-        return max(0.0, min(1.0, final_score))
+        return grade_episode(
+            agent_type=self._agent_decisions.get("issue_type", ""),
+            agent_component=self._agent_decisions.get("component", ""),
+            agent_severity=self._agent_decisions.get("severity", ""),
+            agent_next_action=self._agent_decisions.get("next_action", ""),
+            true_type=self._scenario.get("true_type", ""),
+            true_component=self._scenario.get("true_component", ""),
+            true_severity=self._scenario.get("true_severity", ""),
+            gold_next_action=self._scenario.get("gold_next_action", ""),
+            asked_clarifications=self._asked_clarifications,
+            required_clarifications=self._scenario.get("required_clarifications", []),
+            unnecessary_clarifications=unnecessary_count,
+            security_flag=self._scenario.get("security_flag", False),
+            agent_escalated=self._agent_decisions.get("escalated", False),
+            step_count=self._state.step_count,
+        )
 
     # ------------------------------------------------------------------
     # Observation builder
@@ -667,6 +718,10 @@ class BugtriageEnvironment(Environment):
         reward: float = 0.0,
         done: bool = False,
         extra_metadata: Optional[Dict[str, Any]] = None,
+        extracted_signals: Optional[Dict[str, Any]] = None,
+        final_score: Optional[float] = None,
+        score_breakdown: Optional[Dict[str, float]] = None,
+        termination_reason: Optional[str] = None,
     ) -> BugtriageObservation:
         """Build and return a BugtriageObservation from current state."""
 
@@ -692,6 +747,10 @@ class BugtriageEnvironment(Environment):
             step_count=self._state.step_count,
             max_steps=self._max_steps,
             available_actions=list(AVAILABLE_ACTIONS),
+            extracted_signals=extracted_signals or {},
+            final_score=final_score,
+            score_breakdown=score_breakdown or {},
+            termination_reason=termination_reason,
             # OpenEnv base fields
             done=done,
             # Guard: reward MUST always be a float (never None, never str)

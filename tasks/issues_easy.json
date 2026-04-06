@@ -17,6 +17,11 @@
     "required_clarifications": [],
     "gold_next_action": "fix_immediately",
     "security_flag": false,
+    "explicit_hints": {
+      "component_hint": "payments",
+      "severity_hint": "S1_major",
+      "next_action_hint": "fix_immediately"
+    },
     "difficulty": "easy"
   },
   {
@@ -37,6 +42,11 @@
     "required_clarifications": [],
     "gold_next_action": "schedule_next_sprint",
     "security_flag": false,
+    "explicit_hints": {
+      "component_hint": "frontend",
+      "severity_hint": "S2_minor",
+      "next_action_hint": "schedule_next_sprint"
+    },
     "difficulty": "easy"
   },
   {
@@ -57,6 +67,11 @@
     "required_clarifications": [],
     "gold_next_action": "add_to_backlog",
     "security_flag": false,
+    "explicit_hints": {
+      "component_hint": "frontend",
+      "severity_hint": "S3_cosmetic",
+      "next_action_hint": "add_to_backlog"
+    },
     "difficulty": "easy"
   },
   {
@@ -77,6 +92,11 @@
     "required_clarifications": [],
     "gold_next_action": "fix_immediately",
     "security_flag": false,
+    "explicit_hints": {
+      "component_hint": "database",
+      "severity_hint": "S1_major",
+      "next_action_hint": "fix_immediately"
+    },
     "difficulty": "easy"
   },
   {
@@ -97,6 +117,11 @@
     "required_clarifications": [],
     "gold_next_action": "close_as_duplicate",
     "security_flag": false,
+    "explicit_hints": {
+      "component_hint": "auth",
+      "severity_hint": "S2_minor",
+      "next_action_hint": "close_as_duplicate"
+    },
     "difficulty": "easy"
   }
 ]
