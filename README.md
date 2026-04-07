@@ -221,12 +221,7 @@ Latest validated baseline run with `Qwen/Qwen2.5-7B-Instruct` and 5 episodes per
 ## 🚀 Deployment (HF Spaces)
 
 Final submission deployment:
-**HF Space URL**: [https://huggingface.co/spaces/Mohit2EZ/bugtriage-openenv](https://huggingface.co/spaces/Mohit2EZ/bugtriage-openenv)
-
-**Live Endpoints**:
-- Health: `https://Mohit2EZ-bugtriage-openenv.hf.space/health`
-- Reset: `https://Mohit2EZ-bugtriage-openenv.hf.space/reset`
-- Step: `https://Mohit2EZ-bugtriage-openenv.hf.space/step`
+**HF Space URL**: [https://huggingface.co/spaces/openenv/bugtriage-openenv](https://huggingface.co/spaces/openenv/bugtriage-openenv) _(Placeholder)_
 
 ---
 
