@@ -1,3 +1,13 @@
+---
+title: Bug Triage OpenEnv
+emoji: 🐛
+colorFrom: red
+colorTo: yellow
+sdk: docker
+pinned: false
+license: bsd-3-clause
+---
+
 # bugtriage_env: OpenEnv Environment Package
 
 This directory contains the core implementation of the **Bug/Issue Triage OpenEnv** environment.
