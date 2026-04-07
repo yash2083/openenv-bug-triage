@@ -1,0 +1,127 @@
+[
+  {
+    "issue_id": "TRIAGE-001",
+    "title": "Payment processing fails for international credit cards",
+    "description": "We're experiencing payment failures for all international credit card transactions since the v3.1.0 deployment on March 20th. Customers in EU, UK, and Asia are unable to complete purchases. The payment form accepts the card details but fails at the final processing step with a generic error message. This is affecting approximately 30% of our customer base and causing significant revenue loss. The issue occurs consistently across all browsers and devices.",
+    "reporter_type": "internal",
+    "environment": {
+      "os": "Ubuntu 22.04 LTS",
+      "browser": "Chrome 122.0.6261.94",
+      "app_version": "v3.1.0",
+      "device": "Desktop"
+    },
+    "logs_excerpt": "ERROR 2026-03-25 09:14:33 payments.gateway - Stripe API call failed: InvalidRequestError - Currency conversion not configured for merchant account. Request ID: req_8xK2mP9vL4nQ7R. Card country: GB, Merchant country: US, Missing config: multi_currency_enabled=false",
+    "true_type": "bug",
+    "true_component": "payments",
+    "true_severity": "S1_major",
+    "required_clarifications": [],
+    "gold_next_action": "fix_immediately",
+    "security_flag": false,
+    "explicit_hints": {
+      "component_hint": "payments",
+      "severity_hint": "S1_major",
+      "next_action_hint": "fix_immediately"
+    },
+    "difficulty": "easy"
+  },
+  {
+    "issue_id": "TRIAGE-002",
+    "title": "Dashboard charts not rendering on Safari 17",
+    "description": "The analytics dashboard charts are not displaying correctly on Safari 17 (macOS Sonoma). The chart containers appear but remain blank with no data visualization. This issue started appearing after the dashboard redesign in v4.2.0 released last week. The same charts work perfectly on Chrome, Firefox, and Edge. Approximately 15% of our users are on Safari and are unable to view their analytics data. Console shows a JavaScript error related to the charting library.",
+    "reporter_type": "qa",
+    "environment": {
+      "os": "macOS Sonoma 14.3",
+      "browser": "Safari 17.2.1",
+      "app_version": "v4.2.0",
+      "device": "MacBook Pro M2"
+    },
+    "logs_excerpt": "ERROR 2026-03-26 14:22:18 frontend.charts - TypeError: Cannot read property 'getContext' of null at ChartRenderer.initialize (chart-renderer.js:45). Safari does not support OffscreenCanvas API used in chart-renderer.js. Fallback to standard Canvas API required.",
+    "true_type": "bug",
+    "true_component": "frontend",
+    "true_severity": "S2_minor",
+    "required_clarifications": [],
+    "gold_next_action": "schedule_next_sprint",
+    "security_flag": false,
+    "explicit_hints": {
+      "component_hint": "frontend",
+      "severity_hint": "S2_minor",
+      "next_action_hint": "schedule_next_sprint"
+    },
+    "difficulty": "easy"
+  },
+  {
+    "issue_id": "TRIAGE-003",
+    "title": "Add dark mode toggle to account settings page",
+    "description": "As a user, I would like to have a dark mode option in my account settings. Currently, the application only supports light mode, which can be straining on the eyes during evening use. Many modern applications offer this feature, and it would greatly improve user experience. The toggle should be easily accessible in the account settings page and should persist across sessions. This would be a nice quality-of-life improvement for users who prefer darker interfaces.",
+    "reporter_type": "customer",
+    "environment": {
+      "os": "Windows 11",
+      "browser": "Chrome 122.0.6261.94",
+      "app_version": "v4.2.0",
+      "device": "Desktop"
+    },
+    "logs_excerpt": null,
+    "true_type": "feature_request",
+    "true_component": "frontend",
+    "true_severity": "S3_cosmetic",
+    "required_clarifications": [],
+    "gold_next_action": "add_to_backlog",
+    "security_flag": false,
+    "explicit_hints": {
+      "component_hint": "frontend",
+      "severity_hint": "S3_cosmetic",
+      "next_action_hint": "add_to_backlog"
+    },
+    "difficulty": "easy"
+  },
+  {
+    "issue_id": "TRIAGE-004",
+    "title": "Database connection pool exhausted under peak load",
+    "description": "During peak traffic hours (12pm-2pm EST), the application becomes unresponsive and users see 'Service Temporarily Unavailable' errors. This started happening after we increased our user base by 40% last month. The issue resolves itself after traffic subsides. Monitoring shows database connection pool reaching maximum capacity (100 connections) and new requests timing out. This is impacting user experience during our busiest hours and causing customer complaints. The pattern is consistent and reproducible during high-traffic periods.",
+    "reporter_type": "internal",
+    "environment": {
+      "os": "Ubuntu 22.04 LTS",
+      "browser": "N/A - Server-side issue",
+      "app_version": "v4.1.5",
+      "device": "AWS EC2 t3.xlarge"
+    },
+    "logs_excerpt": "ERROR 2026-03-27 13:45:22 database.pool - Connection pool exhausted: max_connections=100, active=100, idle=0, waiting=47. WARN 2026-03-27 13:45:22 database.pool - Connection acquisition timeout after 30000ms. ERROR 2026-03-27 13:45:23 api.handler - Database query failed: TimeoutError - Could not acquire connection from pool within timeout period.",
+    "true_type": "bug",
+    "true_component": "database",
+    "true_severity": "S1_major",
+    "required_clarifications": [],
+    "gold_next_action": "fix_immediately",
+    "security_flag": false,
+    "explicit_hints": {
+      "component_hint": "database",
+      "severity_hint": "S1_major",
+      "next_action_hint": "fix_immediately"
+    },
+    "difficulty": "easy"
+  },
+  {
+    "issue_id": "TRIAGE-005",
+    "title": "Login failure with 'Invalid credentials' error for valid accounts",
+    "description": "Users are reporting login failures with 'Invalid credentials' error message even when using correct username and password. This issue appears to be identical to TRIAGE-001 which was reported last week. The error occurs intermittently, affecting about 5% of login attempts. Users can successfully log in on retry, suggesting this is not an actual credential issue. The problem started after the authentication service update in v4.0.8. QA has confirmed this is a duplicate of the previously reported issue.",
+    "reporter_type": "qa",
+    "environment": {
+      "os": "Windows 11",
+      "browser": "Firefox 123.0",
+      "app_version": "v4.0.8",
+      "device": "Desktop"
+    },
+    "logs_excerpt": "ERROR 2026-03-28 10:15:44 auth.service - Login attempt failed: user_id=12847, reason=session_token_validation_failed. WARN 2026-03-28 10:15:44 auth.service - Redis connection timeout during session lookup (timeout=5000ms). This matches the exact error pattern from TRIAGE-001.",
+    "true_type": "bug",
+    "true_component": "auth",
+    "true_severity": "S2_minor",
+    "required_clarifications": [],
+    "gold_next_action": "close_as_duplicate",
+    "security_flag": false,
+    "explicit_hints": {
+      "component_hint": "auth",
+      "severity_hint": "S2_minor",
+      "next_action_hint": "close_as_duplicate"
+    },
+    "difficulty": "easy"
+  }
+]

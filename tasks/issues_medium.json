@@ -1,0 +1,102 @@
+[
+  {
+    "issue_id": "TRIAGE-006",
+    "title": "Mobile app crashes on launch after v4.8 update",
+    "description": "The mobile app crashes immediately upon launch after updating to v4.8. This is affecting multiple users who have reported the issue through our support channels. The crash happens consistently every time the app is opened. Users see a brief splash screen and then the app closes. This is a critical issue as users cannot access the app at all. The crash started immediately after the v4.8 update was released yesterday.",
+    "reporter_type": "customer",
+    "environment": {
+      "os": "iOS 17.3",
+      "browser": "N/A - Native mobile app",
+      "app_version": "v4.8.0",
+      "device": "iPhone 14 Pro"
+    },
+    "logs_excerpt": "FATAL 2026-03-29 08:32:15 mobile.app - Uncaught exception: NSInvalidArgumentException - [AppDelegate application:didFinishLaunchingWithOptions:] unrecognized selector sent to instance 0x600001a2c000. Stack trace: CoreFoundation __exceptionPreprocess + 242, libobjc.A.dylib objc_exception_throw + 48, AppDelegate.swift line 127",
+    "true_type": "bug",
+    "true_component": "mobile",
+    "true_severity": "S1_major",
+    "required_clarifications": ["missing_repro_steps"],
+    "gold_next_action": "fix_immediately",
+    "security_flag": false,
+    "difficulty": "medium"
+  },
+  {
+    "issue_id": "TRIAGE-007",
+    "title": "API rate limiter blocking legitimate user requests",
+    "description": "Our API rate limiter is incorrectly blocking legitimate user requests during normal usage. Multiple customers have reported receiving 429 Too Many Requests errors when performing standard operations like loading their dashboard or refreshing data. The issue appears to be affecting users who have multiple browser tabs open or who use our mobile app simultaneously with the web app. This started after we tightened rate limits in the v3.5.0 deployment last week. The current rate limit is set to 100 requests per minute per user, which should be sufficient for normal usage patterns.",
+    "reporter_type": "internal",
+    "environment": {
+      "os": "N/A - Server-side issue",
+      "browser": "Multiple browsers affected",
+      "app_version": "v3.5.0",
+      "device": "Multiple devices"
+    },
+    "logs_excerpt": null,
+    "true_type": "bug",
+    "true_component": "backend",
+    "true_severity": "S1_major",
+    "required_clarifications": ["missing_logs"],
+    "gold_next_action": "fix_immediately",
+    "security_flag": false,
+    "difficulty": "medium"
+  },
+  {
+    "issue_id": "TRIAGE-008",
+    "title": "User avatar upload completes but image never appears",
+    "description": "When users upload a new profile avatar image, the upload process completes successfully with a green checkmark and success message, but the new avatar never appears in the UI. The old avatar (or default placeholder) continues to be displayed. This happens consistently across all browsers and devices. The upload dialog shows 'Upload successful' but refreshing the page or logging out and back in doesn't show the new image. Users have tried uploading different image formats (JPG, PNG) and sizes, but the result is the same. This issue started appearing after the CDN migration in v4.3.0 last week.",
+    "reporter_type": "customer",
+    "environment": {
+      "os": "macOS Sonoma 14.3",
+      "browser": "Chrome 122.0.6261.94",
+      "app_version": "v4.3.0",
+      "device": "MacBook Air M1"
+    },
+    "logs_excerpt": "INFO 2026-03-30 11:45:22 infrastructure.upload - File upload initiated: user_id=45821, filename=avatar.jpg, size=245KB. INFO 2026-03-30 11:45:23 infrastructure.upload - Upload to S3 successful: bucket=user-avatars-prod, key=avatars/45821/avatar.jpg, etag=d8e8fca2dc0f896fd7cb4cb0031ba249. INFO 2026-03-30 11:45:23 infrastructure.cdn - CDN invalidation requested: path=/avatars/45821/*",
+    "true_type": "bug",
+    "true_component": "infrastructure",
+    "true_severity": "S2_minor",
+    "required_clarifications": ["missing_expected_behavior"],
+    "gold_next_action": "schedule_next_sprint",
+    "security_flag": false,
+    "difficulty": "medium"
+  },
+  {
+    "issue_id": "TRIAGE-009",
+    "title": "Sessions timing out too quickly after v4.7 deployment",
+    "description": "Users are reporting that their sessions are expiring much faster than expected after the v4.7 deployment. They're being logged out and forced to re-authenticate multiple times per day, even during active usage. This is causing significant frustration and workflow interruption. The session timeout was supposed to be 8 hours of inactivity, but users report being logged out after what seems like 30-60 minutes. This issue is affecting both web and mobile users. The problem started immediately after the v4.7 authentication service update was deployed on March 28th.",
+    "reporter_type": "qa",
+    "environment": {
+      "os": null,
+      "browser": null,
+      "app_version": "v4.7.0",
+      "device": null
+    },
+    "logs_excerpt": "INFO 2026-03-31 09:22:15 auth.session - Session created: session_id=sess_9xK2mP9vL4nQ7R, user_id=12847, ttl=1800. INFO 2026-03-31 09:52:18 auth.session - Session expired: session_id=sess_9xK2mP9vL4nQ7R, user_id=12847, age=1803s. WARN 2026-03-31 09:52:18 auth.middleware - Session validation failed: session_id=sess_9xK2mP9vL4nQ7R, reason=expired",
+    "true_type": "bug",
+    "true_component": "auth",
+    "true_severity": "S2_minor",
+    "required_clarifications": ["missing_environment"],
+    "gold_next_action": "schedule_next_sprint",
+    "security_flag": false,
+    "difficulty": "medium"
+  },
+  {
+    "issue_id": "TRIAGE-010",
+    "title": "Checkout flow intermittently hangs at payment confirmation",
+    "description": "The checkout flow sometimes hangs at the payment confirmation step. Users click the 'Confirm Payment' button and see a loading spinner that never completes. The page doesn't show an error message, it just keeps loading indefinitely. Users have to refresh the page and start the checkout process over. When this happens, the payment is not processed, so users aren't charged, but it's causing cart abandonment and lost sales. This issue started appearing after the payment gateway integration update in v3.8.0 deployed last Friday. Some users report it happens to them, while others have no issues.",
+    "reporter_type": "customer",
+    "environment": {
+      "os": "Windows 11",
+      "browser": "Edge 122.0.2365.52",
+      "app_version": "v3.8.0",
+      "device": "Desktop"
+    },
+    "logs_excerpt": "INFO 2026-04-01 14:33:42 payments.checkout - Payment confirmation initiated: order_id=ORD-88234, amount=$127.50, user_id=34521. INFO 2026-04-01 14:33:43 payments.gateway - Stripe payment intent created: pi_3MtwBwLkdIwHu7ix28a3tqPa, status=requires_confirmation. WARN 2026-04-01 14:34:13 payments.checkout - Payment confirmation timeout: order_id=ORD-88234, elapsed=30000ms",
+    "true_type": "bug",
+    "true_component": "payments",
+    "true_severity": "S1_major",
+    "required_clarifications": ["missing_frequency"],
+    "gold_next_action": "fix_immediately",
+    "security_flag": false,
+    "difficulty": "medium"
+  }
+]

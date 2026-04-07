@@ -1,0 +1,102 @@
+[
+  {
+    "issue_id": "TRIAGE-011",
+    "title": "User profile page displaying another user's personal data",
+    "description": "I logged into my account to update my profile information, but when I navigated to my profile page, I can see another user's contact information and order history instead of my own. The name shown is 'Sarah Johnson' but my name is 'Michael Chen'. I can see her email address (sarah.j@email.com), phone number, shipping addresses, and complete purchase history including order numbers and amounts. This is extremely concerning from a privacy perspective. I tried logging out and back in, but the same issue persists. I can still access other parts of the application normally, but the profile page consistently shows someone else's data.",
+    "reporter_type": "customer",
+    "environment": {
+      "os": "macOS Ventura 13.6",
+      "browser": "Safari 17.1",
+      "app_version": "v4.5.2",
+      "device": "MacBook Pro M1"
+    },
+    "logs_excerpt": "INFO 2026-04-02 10:15:33 auth.middleware - User authenticated: user_id=12847, session_id=sess_xK9mP2vL8nQ4R. INFO 2026-04-02 10:15:34 profile.controller - Profile data requested: user_id=12847. ERROR 2026-04-02 10:15:34 profile.service - User ID mismatch detected: authenticated_user_id=12847, profile_data_user_id=15923. WARN 2026-04-02 10:15:34 profile.service - Returning profile for user_id=15923 despite authentication for user_id=12847. Potential session/cache key collision.",
+    "true_type": "bug",
+    "true_component": "auth",
+    "true_severity": "S0_critical",
+    "required_clarifications": [],
+    "gold_next_action": "fix_immediately",
+    "security_flag": true,
+    "difficulty": "hard"
+  },
+  {
+    "issue_id": "TRIAGE-012",
+    "title": "Password reset link remains valid after being used once",
+    "description": "I requested a password reset for my account and received the reset link via email. I clicked the link, successfully reset my password, and logged in with the new password. However, out of curiosity, I clicked the same reset link again from my email, and it still worked - I was able to reset my password a second time using the exact same link. I used the same reset link twice and both times worked without any error or warning that the link had already been used. This seems like a security issue because if someone intercepts the reset email, they could use the link even after the legitimate user has already reset their password.",
+    "reporter_type": "customer",
+    "environment": {
+      "os": "Windows 11",
+      "browser": "Chrome 122.0.6261.94",
+      "app_version": "v4.4.1",
+      "device": "Desktop"
+    },
+    "logs_excerpt": "INFO 2026-04-03 15:22:10 auth.password_reset - Password reset requested: user_id=23456, email=user@example.com, token=rst_8xK2mP9vL4nQ7R. INFO 2026-04-03 15:25:33 auth.password_reset - Password reset completed: user_id=23456, token=rst_8xK2mP9vL4nQ7R, new_password_hash=bcrypt$2b$12$... INFO 2026-04-03 15:28:45 auth.password_reset - Password reset token validated: token=rst_8xK2mP9vL4nQ7R, valid=true, used=true. WARN 2026-04-03 15:28:45 auth.password_reset - Token marked as used but validation still passing. INFO 2026-04-03 15:28:46 auth.password_reset - Password reset completed: user_id=23456, token=rst_8xK2mP9vL4nQ7R (second use).",
+    "true_type": "bug",
+    "true_component": "auth",
+    "true_severity": "S0_critical",
+    "required_clarifications": [],
+    "gold_next_action": "fix_immediately",
+    "security_flag": true,
+    "difficulty": "hard"
+  },
+  {
+    "issue_id": "TRIAGE-013",
+    "title": "Internal admin dashboard accessible without authentication",
+    "description": "While testing our application's public pages, I accidentally navigated to /admin in the URL bar and discovered that the internal admin dashboard is accessible without requiring any authentication. I was not logged in at all, yet I had full access to the admin panel showing user management, system settings, database statistics, and administrative controls. I could view all registered users, their email addresses, account status, and even had buttons to modify user permissions and delete accounts. This is a critical security vulnerability as anyone who discovers this URL path could gain unauthorized administrative access to the system.",
+    "reporter_type": "internal",
+    "environment": {
+      "os": "Ubuntu 22.04 LTS",
+      "browser": "Firefox 123.0",
+      "app_version": "v4.6.0",
+      "device": "Desktop"
+    },
+    "logs_excerpt": "INFO 2026-04-04 09:45:12 web.router - Request received: path=/admin, method=GET, ip=192.168.1.105. WARN 2026-04-04 09:45:12 auth.middleware - No authentication token present in request headers. ERROR 2026-04-04 09:45:12 auth.middleware - Authentication middleware bypassed for path=/admin due to misconfigured route whitelist. INFO 2026-04-04 09:45:12 admin.controller - Admin dashboard rendered: authenticated=false, user_id=null. CRITICAL 2026-04-04 09:45:12 security.audit - Unauthenticated access to admin dashboard detected.",
+    "true_type": "bug",
+    "true_component": "backend",
+    "true_severity": "S0_critical",
+    "required_clarifications": [],
+    "gold_next_action": "fix_immediately",
+    "security_flag": true,
+    "difficulty": "hard"
+  },
+  {
+    "issue_id": "TRIAGE-014",
+    "title": "Search results include records from other organization accounts",
+    "description": "Our multi-tenant application is showing search results that include records from other organizations. When users in Organization A search for customer records, they're seeing results that include customers from Organization B and Organization C mixed in with their own data. The search functionality was working correctly until the database query optimization in v4.9.0 last week. Users can see customer names, email addresses, and order summaries from other organizations in the search results. However, when they click on these records, they get an 'Access Denied' error, so they cannot actually view the full details. This appears to be a data leak issue in the search query logic.",
+    "reporter_type": "qa",
+    "environment": {
+      "os": "Windows 11",
+      "browser": "Chrome 122.0.6261.94",
+      "app_version": "v4.9.0",
+      "device": "Desktop"
+    },
+    "logs_excerpt": "INFO 2026-04-05 11:30:22 search.service - Search query executed: org_id=1001, query='john', user_id=12847. DEBUG 2026-04-05 11:30:22 database.query - SQL: SELECT * FROM customers WHERE name LIKE '%john%' AND status='active' LIMIT 50. WARN 2026-04-05 11:30:22 database.query - Query missing org_id filter in WHERE clause. Expected: WHERE name LIKE '%john%' AND status='active' AND org_id=1001. INFO 2026-04-05 11:30:22 search.service - Search results returned: count=47, orgs_in_results=[1001, 1002, 1003, 1005]. ERROR 2026-04-05 11:30:25 records.controller - Access denied: user_id=12847 (org_id=1001) attempted to access record_id=88234 (org_id=1002).",
+    "true_type": "bug",
+    "true_component": "database",
+    "true_severity": "S1_major",
+    "required_clarifications": [],
+    "gold_next_action": "fix_immediately",
+    "security_flag": false,
+    "difficulty": "hard"
+  },
+  {
+    "issue_id": "TRIAGE-015",
+    "title": "Mass service failures across frontend, payments, and notifications after deploy",
+    "description": "Immediately after deploying v5.0.0 to production, we're experiencing widespread failures across multiple services. The frontend is showing 500 Internal Server Error on most pages, payment processing is completely down with gateway connection errors, and notification emails are failing to send. The error logs show failures in frontend rendering, payment API calls, notification service connections, and even some database queries timing out. This appears to be affecting all users and all functionality. The deployment included updates to the frontend framework, payment gateway integration, and notification service configuration. We need to identify the root cause quickly as this is a complete service outage.",
+    "reporter_type": "internal",
+    "environment": {
+      "os": "Ubuntu 22.04 LTS",
+      "browser": "N/A - Server-side issue",
+      "app_version": "v5.0.0",
+      "device": "AWS EC2 production cluster"
+    },
+    "logs_excerpt": "ERROR 2026-04-06 08:15:33 frontend.app - Failed to load configuration: REACT_APP_API_BASE_URL is undefined. ERROR 2026-04-06 08:15:34 payments.gateway - Connection failed: getaddrinfo ENOTFOUND api.stripe.com. Environment variable STRIPE_API_KEY is undefined. ERROR 2026-04-06 08:15:35 notifications.service - SMTP connection failed: Authentication failed. Environment variable SMTP_PASSWORD is undefined. ERROR 2026-04-06 08:15:36 database.connection - Connection timeout: host=undefined, port=undefined. Environment variable DATABASE_URL is undefined. CRITICAL 2026-04-06 08:15:37 infrastructure.config - Environment variables not loaded. .env file missing from deployment package.",
+    "true_type": "bug",
+    "true_component": "infrastructure",
+    "true_severity": "S1_major",
+    "required_clarifications": [],
+    "gold_next_action": "fix_immediately",
+    "security_flag": false,
+    "difficulty": "hard"
+  }
+]
