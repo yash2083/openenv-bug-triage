@@ -5,35 +5,20 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-FastAPI application for the Bugtriage Env Environment.
+FastAPI application for the Bugtriage Env Environment with session management.
 
 This module creates an HTTP server that exposes the BugtriageEnvironment
-over HTTP and WebSocket endpoints, compatible with EnvClient.
+over HTTP endpoints with proper session state management.
 
 Endpoints:
     - POST /reset: Reset the environment
     - POST /step: Execute an action
     - GET /state: Get current environment state
-    - GET /schema: Get action/observation schemas
-    - WS /ws: WebSocket endpoint for persistent sessions
+    - GET /health: Health check
 
 Usage:
-    # Development (with auto-reload):
-    uvicorn server.app:app --reload --host 0.0.0.0 --port 8000
-
-    # Production:
-    uvicorn server.app:app --host 0.0.0.0 --port 8000 --workers 4
-
-    # Or run directly:
-    python -m server.app
+    uvicorn server.app:app --host 0.0.0.0 --port 8000
 """
-
-try:
-    from openenv.core.env_server.http_server import create_app
-except Exception as e:  # pragma: no cover
-    raise ImportError(
-        "openenv is required for the web interface. Install dependencies with '\n    uv sync\n'"
-    ) from e
 
 try:
     from ..models import BugtriageAction, BugtriageObservation
@@ -42,19 +27,112 @@ except (ImportError, ModuleNotFoundError):
     from models import BugtriageAction, BugtriageObservation
     from server.bugtriage_env_environment import BugtriageEnvironment
 
+from fastapi import FastAPI, Response, Header, HTTPException
+from fastapi.responses import HTMLResponse
+from typing import Dict, Optional, Any
+from datetime import datetime, timedelta
+from pydantic import BaseModel
+import uuid
 
-# Create the app with web interface and README integration
-app = create_app(
-    BugtriageEnvironment,
-    BugtriageAction,
-    BugtriageObservation,
-    env_name="bugtriage_env",
-    max_concurrent_envs=1,  # increase this number to allow more concurrent WebSocket sessions
+# Session management
+class SessionManager:
+    """Manages environment sessions for HTTP REST endpoints."""
+
+    def __init__(self, session_timeout_minutes: int = 30):
+        self._sessions: Dict[str, tuple[BugtriageEnvironment, datetime]] = {}
+        self._timeout = timedelta(minutes=session_timeout_minutes)
+
+    def create_session(self) -> tuple[str, BugtriageEnvironment]:
+        """Create a new session and return session ID and environment."""
+        session_id = str(uuid.uuid4())
+        env = BugtriageEnvironment()
+        self._sessions[session_id] = (env, datetime.now())
+        return session_id, env
+
+    def get_session(self, session_id: Optional[str]) -> tuple[str, BugtriageEnvironment]:
+        """Get existing session or create new one if not found."""
+        if session_id and session_id in self._sessions:
+            env, last_access = self._sessions[session_id]
+            if datetime.now() - last_access < self._timeout:
+                self._sessions[session_id] = (env, datetime.now())
+                return session_id, env
+            else:
+                env.close()
+                del self._sessions[session_id]
+        return self.create_session()
+
+    def close_session(self, session_id: str):
+        """Close and remove a session."""
+        if session_id in self._sessions:
+            env, _ = self._sessions[session_id]
+            env.close()
+            del self._sessions[session_id]
+
+session_manager = SessionManager()
+
+# Create FastAPI app
+app = FastAPI(
+    title="Bug Triage OpenEnv",
+    description="OpenEnv environment for bug/issue triage tasks with session management",
+    version="1.0.0"
 )
 
+# Helper to serialize observation
+def serialize_obs(obs: BugtriageObservation) -> dict:
+    """Serialize observation to dict."""
+    return obs.model_dump(mode='json')
 
-# Add a welcome page at the root path
-from fastapi.responses import HTMLResponse
+@app.get("/health")
+async def health():
+    """Health check endpoint."""
+    return {"status": "healthy"}
+
+@app.post("/reset")
+async def reset(response: Response, x_session_id: Optional[str] = Header(None)):
+    """Reset environment and return initial observation."""
+    sid, env = session_manager.get_session(x_session_id)
+    obs = env.reset()
+    response.headers["X-Session-ID"] = sid
+    return {
+        "observation": serialize_obs(obs),
+        "reward": 0.0,
+        "done": False
+    }
+
+@app.post("/step")
+async def step(
+    request: dict,
+    response: Response,
+    x_session_id: Optional[str] = Header(None)
+):
+    """Execute action and return observation."""
+    sid, env = session_manager.get_session(x_session_id)
+    response.headers["X-Session-ID"] = sid
+
+    # Parse action
+    action_data = request.get("action", request)
+    try:
+        action = BugtriageAction(**action_data)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    # Execute step
+    obs = env.step(action)
+    return serialize_obs(obs)
+
+@app.get("/state")
+async def get_state(response: Response, x_session_id: Optional[str] = Header(None)):
+    """Get current environment state."""
+    sid, env = session_manager.get_session(x_session_id)
+    response.headers["X-Session-ID"] = sid
+    # Access _state directly since state() returns State object
+    return {
+        "episode_id": env._state.episode_id,
+        "step_count": env._state.step_count,
+        "done": env._done,
+        "cumulative_reward": env._cumulative_reward,
+        "agent_decisions": env._agent_decisions
+    }
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -82,6 +160,7 @@ async def root():
             a { color: #3498db; text-decoration: none; }
             a:hover { text-decoration: underline; }
             .badge { background: #27ae60; color: white; padding: 3px 8px; border-radius: 3px; font-size: 0.9em; }
+            .note { background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 20px 0; }
         </style>
     </head>
     <body>
@@ -89,6 +168,12 @@ async def root():
         <p><span class="badge">✓ Running</span></p>
 
         <p>This is an <strong>OpenEnv-compatible environment</strong> for evaluating AI agents on bug/issue triage tasks.</p>
+
+        <div class="note">
+            <strong>Session Management:</strong> This environment uses session-based state management.
+            Include the <code>X-Session-ID</code> header in your requests to maintain state across calls.
+            The server will return a session ID in the response headers.
+        </div>
 
         <h2>📚 API Documentation</h2>
         <p>View the interactive API documentation: <a href="/docs">/docs</a></p>
@@ -102,32 +187,34 @@ async def root():
 
         <div class="endpoint">
             <code>POST /reset</code><br>
-            Initialize a new episode with a random issue from the task set
+            Initialize a new episode. Returns session ID in <code>X-Session-ID</code> header.
         </div>
 
         <div class="endpoint">
             <code>POST /step</code><br>
-            Execute an action and receive the next observation
+            Execute an action. Include <code>X-Session-ID</code> header to maintain state.
         </div>
 
         <div class="endpoint">
             <code>GET /state</code><br>
-            Get the current environment state
+            Get current environment state. Include <code>X-Session-ID</code> header.
         </div>
 
         <h2>🚀 Quick Test</h2>
         <p>Try these commands:</p>
         <pre style="background: #2c3e50; color: #ecf0f1; padding: 15px; border-radius: 5px; overflow-x: auto;">
-# Health check
-curl https://Mohit2EZ-bugtriage-openenv.hf.space/health
+# Reset and capture session ID
+SESSION_ID=$(curl -s -X POST https://Mohit2EZ-bugtriage-openenv.hf.space/reset -D - | grep -i x-session-id | cut -d' ' -f2 | tr -d '\\r')
 
-# Start a new episode
-curl -X POST https://Mohit2EZ-bugtriage-openenv.hf.space/reset
-
-# Take an action
+# Take an action with session ID
 curl -X POST https://Mohit2EZ-bugtriage-openenv.hf.space/step \\
   -H "Content-Type: application/json" \\
-  -d '{"action_type": "SetSeverity", "severity": "S1_major"}'
+  -H "X-Session-ID: $SESSION_ID" \\
+  -d '{"action": {"action_type": "SetSeverity", "severity": "S1_major"}}'
+
+# Check state
+curl https://Mohit2EZ-bugtriage-openenv.hf.space/state \\
+  -H "X-Session-ID: $SESSION_ID"
         </pre>
 
         <h2>📖 Learn More</h2>
@@ -141,28 +228,10 @@ curl -X POST https://Mohit2EZ-bugtriage-openenv.hf.space/step \\
 
 
 def main(host: str = "0.0.0.0", port: int = 8000):
-    """
-    Entry point for direct execution via uv run or python -m.
-
-    This function enables running the server without Docker:
-        uv run --project . server
-        uv run --project . server --port 8001
-        python -m bugtriage_env.server.app
-
-    Args:
-        host: Host address to bind to (default: "0.0.0.0")
-        port: Port number to listen on (default: 8000)
-
-    For production deployments, consider using uvicorn directly with
-    multiple workers:
-        uvicorn bugtriage_env.server.app:app --workers 4
-    """
+    """Entry point for direct execution."""
     import sys
     import uvicorn
 
-    # Support --port CLI arg when invoked as a script entry point.
-    # openenv validate requires main() to be callable with no arguments;
-    # defaults above (host="0.0.0.0", port=8000) satisfy that requirement.
     _port = port
     if len(sys.argv) > 1:
         import argparse
@@ -177,4 +246,4 @@ def main(host: str = "0.0.0.0", port: int = 8000):
 
 
 if __name__ == "__main__":
-    main()  # all CLI arg parsing happens inside main()
+    main()
