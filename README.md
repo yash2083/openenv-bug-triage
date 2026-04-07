@@ -29,28 +29,146 @@ In modern software engineering, triaging incoming reports is a critical but time
 
 ---
 
+## 🎯 Environment Goal
+
+**What is the agent trying to achieve?**
+
+The agent's objective is to **accurately triage incoming bug/issue reports** by:
+
+1. **Gathering Information**: Identify missing critical details and ask targeted clarification questions
+2. **Classification**: Correctly categorize the issue type (bug, feature request, or question)
+3. **Prioritization**: Assign appropriate severity level based on impact and urgency
+4. **Routing**: Direct the issue to the correct engineering team/component
+5. **Action Planning**: Recommend the next workflow step (immediate fix, sprint planning, backlog, etc.)
+6. **Decision Making**: Either submit a complete triage or escalate to human experts when necessary (especially for security issues)
+
+**Success Criteria**: The agent receives a score from 0.0 to 1.0 based on how closely its decisions match the ground truth for each scenario. Perfect triage across all fields yields a score of 1.0.
+
+---
+
 ## 🛠️ Environment Interface
 
 The environment uses a structured JSON-based communication protocol.
 
 ### Action Space (7 Types)
 
-1. **`AskClarification`**: Request missing info (repro steps, logs, etc.) from the reporter.
-2. **`SetClassification`**: Categorize as `bug`, `feature_request`, or `question`.
-3. **`SetSeverity`**: Assign priority from `S0_critical` to `S3_cosmetic`.
-4. **`AssignComponent`**: Route to specific teams (e.g., `backend`, `auth`, `payments`).
-5. **`ProposeNextAction`**: Recommend workflow steps (e.g., `fix_immediately`, `backlog`).
-6. **`SubmitTriage`**: Terminal action to complete the episode.
-7. **`EscalateToHuman`**: Terminal action for security issues or extreme ambiguity.
+The agent can take the following actions during an episode:
+
+#### 1. **`AskClarification`**
+**Purpose**: Request missing information from the issue reporter.
+
+**When to use**:
+- When reproduction steps are unclear or missing
+- When environment details (OS, browser, version) are not provided
+- When logs or error messages are absent
+- When expected vs. actual behavior is ambiguous
+
+**Parameters**:
+- `question_type`: One of `missing_repro_steps`, `missing_environment`, `missing_logs`, `missing_expected_behavior`, `missing_frequency`, or `other`
+- `question_text`: The actual question to ask
+
+**Reward Impact**: +0.15 for asking required clarifications, -0.10 for unnecessary questions
+
+---
+
+#### 2. **`SetClassification`**
+**Purpose**: Categorize the issue type.
+
+**When to use**: After understanding the core nature of the report.
+
+**Options**:
+- `bug`: Something is broken or not working as intended
+- `feature_request`: User wants new functionality
+- `question`: User needs help or clarification
+
+**Reward Impact**: +0.15 for correct classification, 0.0 for incorrect
+
+---
+
+#### 3. **`SetSeverity`**
+**Purpose**: Assign priority level based on impact and urgency.
+
+**When to use**: After understanding the scope and consequences of the issue.
+
+**Options** (from highest to lowest priority):
+- `S0_critical`: Complete service outage, data loss, security breach
+- `S1_major`: Core functionality broken, affects many users
+- `S2_minor`: Non-critical feature broken, workaround exists
+- `S3_cosmetic`: UI/UX polish, minor visual issues
+
+**Reward Impact**: +0.20 for exact match, +0.10 for off-by-one (e.g., S1 instead of S2), 0.0 otherwise
+
+---
+
+#### 4. **`AssignComponent`**
+**Purpose**: Route the issue to the appropriate engineering team.
+
+**When to use**: After identifying which system/service is affected.
+
+**Options**: `backend`, `frontend`, `database`, `auth`, `payments`, `notifications`, `infrastructure`, `mobile`, `api`, `unknown`
+
+**Reward Impact**: +0.20 for exact match, +0.10 for same component family (e.g., `auth` and `backend` are both service_core), 0.0 otherwise
+
+---
+
+#### 5. **`ProposeNextAction`**
+**Purpose**: Recommend the workflow step after triage.
+
+**When to use**: After completing classification, severity, and component assignment.
+
+**Options**:
+- `fix_immediately`: Critical issues requiring immediate attention
+- `needs_investigation`: Requires deeper analysis before fixing
+- `schedule_next_sprint`: Plan for upcoming sprint
+- `add_to_backlog`: Lower priority, queue for future work
+- `close_as_duplicate`: Already reported elsewhere
+- `close_as_wontfix`: Not a bug or out of scope
+
+**Reward Impact**: +0.15 for exact match, +0.075 for same policy family, 0.0 otherwise
+
+---
+
+#### 6. **`SubmitTriage`** (Terminal Action)
+**Purpose**: Complete the triage process and end the episode.
+
+**When to use**: When all required fields are set and you're confident in your decisions.
+
+**Parameters**:
+- `summary`: Brief explanation of your triage decision
+
+**Reward Impact**: +0.15 if all required fields are present, -0.20 if submitting with missing information
+
+---
+
+#### 7. **`EscalateToHuman`** (Terminal Action)
+**Purpose**: Escalate to human experts for manual review.
+
+**When to use**:
+- **Security issues**: Unauthorized data access, authentication bypass, credential exposure
+- **Extreme ambiguity**: Cannot determine correct classification even after clarifications
+- **High-stakes decisions**: When wrong triage could have severe consequences
+
+**Parameters**:
+- `reason`: Explanation for why escalation is needed
+
+**Reward Impact**: +1.0 for security issues (required), -0.50 for unnecessary escalation
+
+**⚠️ Critical Rule**: Failing to escalate a security-flagged issue caps your final score at 0.2, regardless of other correct decisions.
+
+---
 
 ### Observation Space
 
 Agents receive a rich context including:
 
-- **`issue_id` / `title` / `description`**: Core issue data.
-- **`environment`**: OS, Browser, App Version, and Device details.
-- **`logs_excerpt`**: Raw system logs if available.
-- **`conversation_history`**: The full thread of interactions between the agent and reporter.
+- **`issue_id` / `title` / `description`**: Core issue data
+- **`reporter_type`**: Whether reporter is `customer`, `internal`, or `qa`
+- **`environment`**: OS, Browser, App Version, and Device details
+- **`logs_excerpt`**: Raw system logs if available
+- **`conversation_history`**: The full thread of interactions between agent and reporter
+- **`step_count` / `max_steps`**: Current progress in the episode
+- **`reward`**: Reward received for the last action
+- **`done`**: Whether the episode has ended
 
 > [!TIP]
 > See [docs/ACTIONS_OBS_SCHEMA.md](docs/ACTIONS_OBS_SCHEMA.md) for the full technical schema.
@@ -90,6 +208,8 @@ score at 0.2 regardless of other correct decisions.
 
 ### Scoring Rubric (Weighted 0..1)
 
+The agent's final score is computed using a weighted rubric across five criteria:
+
 | Criterion          | Weight | Description                                       |
 | :----------------- | :----- | :------------------------------------------------ |
 | **Classification** | 0.25   | Correct issue type identification.                |
@@ -98,41 +218,224 @@ score at 0.2 regardless of other correct decisions.
 | **Clarification**  | 0.15   | Asking for _required_ info vs. unnecessary spam.  |
 | **Next Action**    | 0.10   | Correct workflow recommendation.                  |
 
-**Shaped Rewards**: The agent receives incremental rewards/penalties during the episode to guide behavior (e.g., bonus for required questions, penalty for excessive steps).
+**Raw Score Calculation**:
+```
+raw_score = (0.25 × classification_score) +
+            (0.30 × component_score) +
+            (0.20 × severity_score) +
+            (0.15 × clarification_score) +
+            (0.10 × next_action_score)
+```
+
+---
+
+## 🎁 Reward Signals
+
+### Shaped Rewards (Step-Level)
+
+The agent receives incremental rewards throughout the episode to guide learning:
+
+**Positive Rewards**:
+- ✅ Correct classification: **+0.15**
+- ✅ Correct component assignment: **+0.20**
+- ✅ Correct severity: **+0.20**
+- ✅ Asked required clarification: **+0.15**
+- ✅ Correct next action: **+0.15**
+- ✅ Complete submission with all fields: **+0.15**
+
+**Negative Penalties**:
+- ❌ Submitting with missing required info: **-0.20**
+- ❌ Asking unnecessary clarification: **-0.10**
+- ❌ Invalid action format: **-0.10**
+- ❌ Loop penalty (after step 6): **-0.05 per extra step**
+- ❌ Early submission (< 2 steps): **30% penalty multiplier**
+- ❌ Wrong security handling: **Score capped at 0.2**
+
+### Partial Credit Mechanisms
+
+**Severity (Off-by-One)**:
+- Exact match: **1.0 × weight**
+- One level off (e.g., S1 instead of S2): **0.5 × weight**
+- Two+ levels off: **0.0 × weight**
+
+**Component (Same Family)**:
+- Exact match: **1.0 × weight**
+- Same component family: **0.5 × weight**
+  - Example: `auth` and `backend` are both in `service_core` family
+- Different family: **0.0 × weight**
+
+**Next Action (Same Policy)**:
+- Exact match: **1.0 × weight**
+- Same policy family: **0.5 × weight**
+  - Example: `fix_immediately` and `needs_investigation` are both in `urgent_fix_path`
+- Different policy: **0.0 × weight**
+
+**Clarification Quality**:
+```
+score = (asked_required / total_required) - (0.1 × unnecessary_count)
+```
+Clamped to [0.0, 1.0]
+
+### Security Cap Rule ⚠️
+
+**Critical**: If a scenario has `security_flag = true` and the agent does NOT call `EscalateToHuman`, the final score is **capped at 0.2** regardless of all other correct decisions.
+
+This enforces that security issues must always be escalated to human experts, even if the agent correctly identifies the type, severity, and component.
+
+### Final Score Computation
+
+```python
+# Apply step-based penalties
+penalty_multiplier = 1.0
+if step_count > 6:
+    loop_penalty = 0.05 × (step_count - 6)
+    penalty_multiplier = max(0.0, 1.0 - loop_penalty)
+if step_count < 2:
+    penalty_multiplier *= 0.7
+
+final_score = raw_score × penalty_multiplier
+
+# Apply security cap
+if security_flag and not agent_escalated:
+    final_score = min(final_score, 0.2)
+
+# Clamp to valid range
+final_score = max(0.0, min(1.0, final_score))
+```
 
 ---
 
 ## 💻 Installation & Usage
 
+### Prerequisites
+
+- **Python 3.10+** (tested with 3.12)
+- **uv** (recommended) or **pip** for dependency management
+- **Docker** (optional, for containerized deployment)
+- **curl** or similar HTTP client for testing
+
 ### Local Setup (No Docker)
 
-Requires `uv` or `pip`.
-
+**Step 1: Clone the repository**
 ```bash
-# Clone and setup
-git clone <repo-url> bugtriage-openenv
-cd bugtriage-openenv
+git clone https://github.com/yash2083/openenv-bug-triage.git
+cd openenv-bug-triage
+```
+
+**Step 2: Install dependencies**
+
+Using `make` (recommended):
+```bash
 make setup
 source .venv/bin/activate
+```
 
-# Start the environment server
+Or manually with `uv`:
+```bash
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install uv
+uv sync
+```
+
+Or with `pip`:
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+**Step 3: Start the environment server**
+```bash
 cd bugtriage_env
 uvicorn server.app:app --host 0.0.0.0 --port 8000
 ```
 
-### Golden Commands (curl)
+The server will start on `http://localhost:8000`. You should see:
+```
+INFO:     Started server process
+INFO:     Uvicorn running on http://0.0.0.0:8000
+```
+
+**Step 4: Verify the server is running**
+```bash
+curl http://localhost:8000/health
+# Expected: {"status":"healthy"}
+```
+
+### Testing the Environment
+
+**Basic Episode Flow**:
 
 ```bash
-# Health check
-curl http://localhost:8000/health
+# 1. Reset to start a new episode (easy difficulty)
+curl -X POST http://localhost:8000/reset \
+  -H "Content-Type: application/json"
 
-# Reset (starts episode)
-curl -X POST http://localhost:8000/reset
+# 2. Take an action (set classification)
+curl -X POST http://localhost:8000/step \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action_type": "SetClassification",
+    "issue_type": "bug"
+  }'
 
-# Step (example: set severity)
-curl -X POST http://localhost:8000/step -H "Content-Type: application/json" \
-     -d '{"action_type": "SetSeverity", "severity": "S1_major"}'
+# 3. Take another action (set severity)
+curl -X POST http://localhost:8000/step \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action_type": "SetSeverity",
+    "severity": "S1_major"
+  }'
+
+# 4. Check current state
+curl http://localhost:8000/state
+
+# 5. Submit triage to end episode
+curl -X POST http://localhost:8000/step \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action_type": "SubmitTriage",
+    "summary": "Payment gateway issue requiring immediate fix"
+  }'
 ```
+
+**Testing Different Difficulty Levels**:
+
+The environment uses the `TASK_SET` environment variable to control difficulty:
+
+```bash
+# Easy scenarios (default)
+TASK_SET=easy uvicorn server.app:app --port 8000
+
+# Medium scenarios (missing information)
+TASK_SET=medium uvicorn server.app:app --port 8000
+
+# Hard scenarios (security-critical)
+TASK_SET=hard uvicorn server.app:app --port 8000
+```
+
+### Running Tests
+
+**Unit Tests** (pytest):
+```bash
+source .venv/bin/activate
+pytest tests/ -v
+```
+
+**Backend Logic Validation**:
+```bash
+source .venv/bin/activate
+python scripts/validate_backend_logic.py
+```
+
+**OpenEnv Compliance Validation**:
+```bash
+cd bugtriage_env
+openenv validate
+```
+
+All tests should pass before deployment.
 
 ---
 
