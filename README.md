@@ -1,3 +1,14 @@
+---
+title: Bug/Issue Triage OpenEnv
+emoji: 🐛
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 8000
+pinned: false
+license: bsd-3-clause
+---
+
 # Bug/Issue Triage OpenEnv
 
 [![OpenEnv Compatible](https://img.shields.io/badge/OpenEnv-Compatible-green.svg)](https://github.com/meta-pytorch/openenv)
