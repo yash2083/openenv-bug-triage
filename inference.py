@@ -806,21 +806,25 @@ def main() -> int:
         print("ERROR: HF_TOKEN is required.", file=sys.stderr)
         return 2
 
-    _validate_openai_base_url(DEFAULT_API_BASE_URL)
+    try:
+        _validate_openai_base_url(DEFAULT_API_BASE_URL)
 
-    # Startup diagnostics for routing and model selection.
-    print(
-        f"[CONFIG] api_base_url={DEFAULT_API_BASE_URL} model={DEFAULT_MODEL_NAME}",
-        flush=True,
-    )
+        # Startup diagnostics for routing and model selection.
+        print(
+            f"[CONFIG] api_base_url={DEFAULT_API_BASE_URL} model={DEFAULT_MODEL_NAME}",
+            flush=True,
+        )
 
-    client = HttpJsonClient(DEFAULT_BASE_URL)
-    ensure_server_reachable(client)
-    llm = OpenAILLM(
-        api_base_url=DEFAULT_API_BASE_URL,
-        model_name=DEFAULT_MODEL_NAME,
-        token=HF_TOKEN,
-    )
+        client = HttpJsonClient(DEFAULT_BASE_URL)
+        ensure_server_reachable(client)
+        llm = OpenAILLM(
+            api_base_url=DEFAULT_API_BASE_URL,
+            model_name=DEFAULT_MODEL_NAME,
+            token=HF_TOKEN,
+        )
+    except Exception as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
 
     all_results: List[EpisodeResult] = []
     for task_set in ("easy", "medium", "hard"):
