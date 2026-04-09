@@ -207,6 +207,8 @@ class HttpJsonClient:
             if not data.strip():
                 return {}
             return json.loads(data)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"Invalid JSON from environment API at {req.full_url}: {exc}") from exc
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="ignore")
             raise RuntimeError(f"HTTP {exc.code} for {req.full_url}: {body}") from exc
@@ -271,10 +273,16 @@ class OpenAILLM:
         except Exception as exc:
             raise RuntimeError(f"OpenAI API error: {exc}") from exc
 
-        text = raw.choices[0].message.content
+        try:
+            text = raw.choices[0].message.content
+        except (AttributeError, IndexError, TypeError) as exc:
+            raise RuntimeError(f"OpenAI API error: malformed response payload: {exc}") from exc
         if not text:
             raise RuntimeError("OpenAI API error: empty response content")
-        action = json.loads(text)
+        try:
+            action = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"OpenAI API error: invalid JSON action: {exc}") from exc
 
         # Deterministic confidence gate: if low confidence for unresolved stage, ask targeted clarification.
         confidence = action.get("confidence")
@@ -750,33 +758,44 @@ def run_single_episode(
         try:
             while not done and steps < MAX_STEPS:
                 steps += 1
-                action = llm.choose_action(
-                    task_set=task_set,
-                    observation=observation,
-                    current_decisions=decisions,
-                )
-                update_decisions_from_action(decisions, action)
-                if action.get("action_type") == "EscalateToHuman":
-                    escalated = True
+                try:
+                    action = llm.choose_action(
+                        task_set=task_set,
+                        observation=observation,
+                        current_decisions=decisions,
+                    )
+                    update_decisions_from_action(decisions, action)
+                    if action.get("action_type") == "EscalateToHuman":
+                        escalated = True
 
-                step_result = env.step(BugtriageAction(**action))
-                reward = float(step_result.reward or 0.0)
-                reward_sum += reward
-                rewards.append(reward)
-                done = bool(step_result.done)
-                observation_obj = step_result.observation
-                observation = observation_obj.model_dump(exclude_none=True)
+                    step_result = env.step(BugtriageAction(**action))
+                    reward = float(step_result.reward or 0.0)
+                    reward_sum += reward
+                    rewards.append(reward)
+                    done = bool(step_result.done)
+                    observation_obj = step_result.observation
+                    observation = observation_obj.model_dump(exclude_none=True)
 
-                log_step(
-                    step=steps,
-                    action=json.dumps(action, separators=(",", ":"), ensure_ascii=True),
-                    reward=reward,
-                    done=done,
-                    error=observation.get("metadata", {}).get("last_action_error"),
-                )
+                    log_step(
+                        step=steps,
+                        action=json.dumps(action, separators=(",", ":"), ensure_ascii=True),
+                        reward=reward,
+                        done=done,
+                        error=observation.get("metadata", {}).get("last_action_error"),
+                    )
 
-                # Ensure /state contract is exercised through the typed client.
-                _ = env.state()
+                    # Ensure /state contract is exercised through the typed client.
+                    _ = env.state()
+                except Exception as exc:
+                    # Do not crash the entire run on one bad network/parse/model step.
+                    log_step(
+                        step=steps,
+                        action='{"action_type":"EscalateToHuman"}',
+                        reward=0.0,
+                        done=True,
+                        error=f"runtime_error:{exc}",
+                    )
+                    break
 
             final_score = float(observation.get("final_score") or 0.0)
             if final_score == 0.0:
@@ -827,10 +846,14 @@ def main() -> int:
         return 2
 
     all_results: List[EpisodeResult] = []
-    for task_set in ("easy", "medium", "hard"):
-        for idx in range(1, EPISODES_PER_SET + 1):
-            result = run_single_episode(DEFAULT_BASE_URL, llm, task_set=task_set, episode_index=idx)
-            all_results.append(result)
+    try:
+        for task_set in ("easy", "medium", "hard"):
+            for idx in range(1, EPISODES_PER_SET + 1):
+                result = run_single_episode(DEFAULT_BASE_URL, llm, task_set=task_set, episode_index=idx)
+                all_results.append(result)
+    except Exception as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
 
     summarize(all_results)
     return 0
