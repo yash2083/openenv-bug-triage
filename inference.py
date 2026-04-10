@@ -55,22 +55,34 @@ def _mask_secret(secret: str) -> str:
     return f"{secret[:6]}...{secret[-4:]}"
 
 
-def _validate_openai_base_url(base_url: str) -> None:
-    lower = base_url.lower()
-    if "router.huggingface.co" not in lower:
-        raise RuntimeError(
-            "API_BASE_URL must point to Hugging Face Router in this configuration: "
-            "https://router.huggingface.co/v1"
+ROUTER_API_BASE_URL = "https://router.huggingface.co/v1"
+
+
+def _resolve_openai_base_url(base_url: str) -> tuple[str, str | None]:
+    """Return a safe OpenAI-compatible base URL for this challenge configuration."""
+    candidate = (base_url or "").strip().rstrip("/")
+    if not candidate:
+        return ROUTER_API_BASE_URL, "API_BASE_URL was empty; using Hugging Face Router default."
+
+    lower = candidate.lower()
+    if not lower.startswith("https://") or "router.huggingface.co" not in lower:
+        return (
+            ROUTER_API_BASE_URL,
+            "API_BASE_URL is not a valid Hugging Face Router URL in this configuration; "
+            f"falling back to {ROUTER_API_BASE_URL}.",
         )
-    if not lower.startswith("https://"):
-        raise RuntimeError("API_BASE_URL must be https:// for router requests.")
+
+    if lower == "https://router.huggingface.co":
+        return ROUTER_API_BASE_URL, f"Normalized API_BASE_URL to {ROUTER_API_BASE_URL}."
+
+    return candidate, None
 
 
 _load_dotenv_if_present()
 
 
 DEFAULT_BASE_URL = os.environ.get("ENV_BASE_URL", "http://localhost:8000").rstrip("/")
-DEFAULT_API_BASE_URL = os.environ.get("API_BASE_URL", "https://router.huggingface.co/v1").rstrip("/")
+DEFAULT_API_BASE_URL = os.environ.get("API_BASE_URL", ROUTER_API_BASE_URL).rstrip("/")
 DEFAULT_MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 MAX_STEPS = int(os.environ.get("BASELINE_MAX_STEPS", "8"))
 EPISODES_PER_SET = int(os.environ.get("BASELINE_EPISODES_PER_SET", "5"))
@@ -220,7 +232,6 @@ class OpenAILLM:
     """OpenAI-compatible chat client configured for HF Router."""
 
     def __init__(self, api_base_url: str, model_name: str, token: str):
-        _validate_openai_base_url(api_base_url)
         self.client = OpenAI(api_key=token, base_url=api_base_url.rstrip("/"))
         self.model_name = model_name
 
@@ -826,18 +837,20 @@ def main() -> int:
         return 2
 
     try:
-        _validate_openai_base_url(DEFAULT_API_BASE_URL)
+        resolved_api_base_url, api_base_warning = _resolve_openai_base_url(DEFAULT_API_BASE_URL)
+        if api_base_warning:
+            print(f"WARN: {api_base_warning}", file=sys.stderr)
 
         # Startup diagnostics for routing and model selection.
         print(
-            f"[CONFIG] api_base_url={DEFAULT_API_BASE_URL} model={DEFAULT_MODEL_NAME}",
+            f"[CONFIG] api_base_url={resolved_api_base_url} model={DEFAULT_MODEL_NAME}",
             flush=True,
         )
 
         client = HttpJsonClient(DEFAULT_BASE_URL)
         ensure_server_reachable(client)
         llm = OpenAILLM(
-            api_base_url=DEFAULT_API_BASE_URL,
+            api_base_url=resolved_api_base_url,
             model_name=DEFAULT_MODEL_NAME,
             token=HF_TOKEN,
         )
