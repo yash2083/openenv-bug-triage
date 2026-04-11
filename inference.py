@@ -25,7 +25,70 @@ from typing import Any, Dict, List
 
 from openai import OpenAI
 
-from bugtriage_env.client import BugtriageEnv
+from bugtriage_env.models import BugtriageAction, BugtriageObservation
+
+class HttpBugtriageEnv:
+    def __init__(self, base_url: str):
+        self.base_url = base_url.rstrip("/")
+        self.session_id = None
+
+    def sync(self):
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    def reset(self, task_set: str):
+        req = urllib.request.Request(f"{self.base_url}/reset", method="POST")
+        req.add_header("Content-Type", "application/json")
+        req.data = json.dumps({"task_set": task_set}).encode("utf-8")
+        
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            self.session_id = resp.headers.get("X-Session-ID") or self.session_id
+            data = json.loads(resp.read().decode("utf-8"))
+            
+        obs = BugtriageObservation(**data["observation"])
+        
+        class MockResult:
+            def __init__(self, obs_obj, done_flag):
+                self.observation = obs_obj
+                self.done = done_flag
+                
+        return MockResult(obs, data.get("done", False))
+
+    def step(self, action: BugtriageAction):
+        action_dict = action.model_dump(exclude_none=True)
+        req = urllib.request.Request(f"{self.base_url}/step", method="POST")
+        req.add_header("Content-Type", "application/json")
+        if self.session_id:
+            req.add_header("X-Session-ID", self.session_id)
+        req.data = json.dumps({"action": action_dict}).encode("utf-8")
+        
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            self.session_id = resp.headers.get("X-Session-ID") or self.session_id
+            obs_dict = json.loads(resp.read().decode("utf-8"))
+            
+        obs = BugtriageObservation(**obs_dict)
+        reward = obs_dict.get("reward", 0.0)
+        done = obs_dict.get("done", False)
+        
+        class MockResult:
+            def __init__(self, obs_obj, r, d):
+                self.observation = obs_obj
+                self.reward = r
+                self.done = d
+                
+        return MockResult(obs, reward, done)
+
+    def state(self):
+        req = urllib.request.Request(f"{self.base_url}/state", method="GET")
+        if self.session_id:
+            req.add_header("X-Session-ID", self.session_id)
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read().decode("utf-8"))
 from bugtriage_env.models import BugtriageAction
 
 
@@ -733,7 +796,7 @@ def run_single_episode(
     task_set: str,
     episode_index: int,
 ) -> EpisodeResult:
-    with BugtriageEnv(base_url=base_url).sync() as env:
+    with HttpBugtriageEnv(base_url=base_url).sync() as env:
         reset_result = env.reset(task_set=task_set)
         observation_obj = reset_result.observation
         observation = observation_obj.model_dump(exclude_none=True)
