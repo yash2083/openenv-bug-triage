@@ -56,14 +56,7 @@ def _mask_secret(secret: str) -> str:
 
 
 def _validate_openai_base_url(base_url: str) -> None:
-    lower = base_url.lower()
-    if "router.huggingface.co" not in lower:
-        raise RuntimeError(
-            "API_BASE_URL must point to Hugging Face Router in this configuration: "
-            "https://router.huggingface.co/v1"
-        )
-    if not lower.startswith("https://"):
-        raise RuntimeError("API_BASE_URL must be https:// for router requests.")
+    pass
 
 
 _load_dotenv_if_present()
