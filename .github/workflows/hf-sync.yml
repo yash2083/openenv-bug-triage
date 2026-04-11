@@ -18,8 +18,8 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           # IMPORTANT: Update these two variables below!
-          HF_USERNAME: "YOUR_HF_USERNAME_HERE"
-          SPACE_NAME: "YOUR_SPACE_NAME_HERE"
+          HF_USERNAME: "yash2083"
+          SPACE_NAME: "openenv-bug-triage"
         run: |
           git remote add space https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/$SPACE_NAME
           git push --force space main
