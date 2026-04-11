@@ -29,9 +29,8 @@ except (ImportError, ModuleNotFoundError):
 
 from fastapi import FastAPI, Response, Header, HTTPException
 from fastapi.responses import HTMLResponse
-from typing import Dict, Optional, Any
+from typing import Dict, Optional
 from datetime import datetime, timedelta
-from pydantic import BaseModel
 import uuid
 
 # Session management

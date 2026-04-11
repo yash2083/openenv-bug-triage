@@ -6,7 +6,6 @@ For hard scenarios with security_flag=True:
 - If the agent escalates correctly → normal scoring applies
 """
 
-import pytest
 import sys
 import os
 

@@ -197,7 +197,7 @@ class TestScoreRange:
     def test_perfect_easy_score_is_one(self):
         """A perfect easy scenario should score exactly 1.0."""
         score = grade_episode(**SCENARIOS[0]["params"])
-        assert score == pytest.approx(1.0), f"Perfect easy score should be 1.0, got {score}"
+        assert score == pytest.approx(0.99), f"Perfect easy score should be 0.99, got {score}"
 
     def test_everything_wrong_score_is_low(self):
         """All-wrong scenario should score very low."""

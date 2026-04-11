@@ -9,7 +9,7 @@ for all task scenario files.
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List
 
 # Valid enum values (from bugtriage_env/models.py)
 VALID_ISSUE_TYPES = {"bug", "feature_request", "question"}
@@ -170,7 +170,7 @@ def validate_difficulty_rules(
                 f"issues_easy.json - {scenario_id}: Easy scenarios must have empty required_clarifications"
             )
 
-        if scenario["security_flag"] != False:
+        if scenario["security_flag"]:
             raise ValidationError(
                 f"issues_easy.json - {scenario_id}: Easy scenarios must have security_flag=false"
             )
@@ -190,7 +190,7 @@ def validate_difficulty_rules(
                 f"got {len(scenario['required_clarifications'])}"
             )
 
-        if scenario["security_flag"] != False:
+        if scenario["security_flag"]:
             raise ValidationError(
                 f"issues_medium.json - {scenario_id}: Medium scenarios must have security_flag=false"
             )
@@ -251,7 +251,7 @@ def print_coverage_summary(
         sev = scenario["true_severity"]
         severities[sev] = severities.get(sev, 0) + 1
 
-    print(f"\nSeverity coverage:")
+    print("\nSeverity coverage:")
     for sev in ["S0_critical", "S1_major", "S2_minor", "S3_cosmetic"]:
         count = severities.get(sev, 0)
         print(f"  {sev}: {count}")
@@ -262,7 +262,7 @@ def print_coverage_summary(
         rep = scenario["reporter_type"]
         reporters[rep] = reporters.get(rep, 0) + 1
 
-    print(f"\nReporter type coverage:")
+    print("\nReporter type coverage:")
     for rep in sorted(reporters.keys()):
         print(f"  {rep}: {reporters[rep]}")
 
@@ -272,7 +272,7 @@ def print_coverage_summary(
         typ = scenario["true_type"]
         types[typ] = types.get(typ, 0) + 1
 
-    print(f"\nIssue type coverage:")
+    print("\nIssue type coverage:")
     for typ in sorted(types.keys()):
         print(f"  {typ}: {types[typ]}")
 
@@ -287,7 +287,7 @@ def print_coverage_summary(
             clarifications[clarif] = clarifications.get(clarif, 0) + 1
 
     if clarifications:
-        print(f"\nClarification types used:")
+        print("\nClarification types used:")
         for clarif in sorted(clarifications.keys()):
             print(f"  {clarif}: {clarifications[clarif]}")
 

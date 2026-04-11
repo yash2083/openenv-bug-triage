@@ -108,7 +108,7 @@ def test_state_management():
     env = BugtriageEnvironment()
     obs = env.reset(task_set="easy")
 
-    print(f"\nInitial state:")
+    print("\nInitial state:")
     print(f"  Step count: {env._state.step_count}")
     print(f"  Cumulative reward: {env._cumulative_reward}")
     print(f"  Done: {env._done}")
@@ -192,7 +192,7 @@ def test_grading_perfect_scenario():
 
     print(f"\nAgent decisions: {env._agent_decisions}")
     print(f"Final score: {score}")
-    print(f"Expected: 1.0 (perfect)")
+    print("Expected: 1.0 (perfect)")
 
     assert 0.95 <= score <= 1.0, f"Perfect scenario should score >= 0.95, got {score}"
 
@@ -254,7 +254,7 @@ def test_grading_imperfect_scenario():
 
     print(f"\nAgent decisions: {env._agent_decisions}")
     print(f"Final score: {score}")
-    print(f"Expected: < 1.0 (imperfect)")
+    print("Expected: < 1.0 (imperfect)")
 
     assert 0.0 <= score < 1.0, f"Score should be in [0, 1), got {score}"
     assert score > 0.3, f"Should get partial credit, got {score}"
@@ -328,7 +328,7 @@ def test_security_cap():
 
     print(f"\nAgent decisions: {env._agent_decisions}")
     print(f"Final score: {score}")
-    print(f"Expected: <= 0.2 (capped due to no escalation)")
+    print("Expected: <= 0.2 (capped due to no escalation)")
 
     assert score <= 0.2, f"Security scenario without escalation should cap at 0.2, got {score}"
 

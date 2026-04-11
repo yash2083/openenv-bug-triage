@@ -15,9 +15,7 @@ from __future__ import annotations
 
 import json
 import os
-import statistics
 import sys
-import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -89,7 +87,6 @@ class HttpBugtriageEnv:
             req.add_header("X-Session-ID", self.session_id)
         with urllib.request.urlopen(req, timeout=30) as resp:
             return json.loads(resp.read().decode("utf-8"))
-from bugtriage_env.models import BugtriageAction
 
 
 def _load_dotenv_if_present(path: str = ".env") -> None:
