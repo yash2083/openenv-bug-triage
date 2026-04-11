@@ -1,0 +1,25 @@
+name: Sync to Hugging Face Space
+on:
+  push:
+    branches: [main]
+  # Allows you to manually trigger the workflow from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  sync-to-hub:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+          
+      - name: Push to HF Hub
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          # IMPORTANT: Update these two variables below!
+          HF_USERNAME: "YOUR_HF_USERNAME_HERE"
+          SPACE_NAME: "YOUR_SPACE_NAME_HERE"
+        run: |
+          git remote add space https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/$SPACE_NAME
+          git push --force space main
