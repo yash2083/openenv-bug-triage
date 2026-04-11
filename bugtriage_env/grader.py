@@ -197,7 +197,7 @@ def grade_episode_breakdown(
     final_score = raw_score * penalty_multiplier
     if security_flag and not agent_escalated:
         final_score = min(final_score, 0.2)
-    final_score = max(0.0, min(1.0, final_score))
+    final_score = max(0.01, min(0.99, final_score))
 
     return ScoreBreakdown(
         classification=classification,
